@@ -283,7 +283,7 @@ def main():
     """
     # Build path relative to this script's location
     script_dir = Path(__file__).parent
-    data_path = script_dir.parent / 'data' / 'raw' / 'transactions_full.csv'
+    data_path = script_dir.parent.parent / 'data' / 'raw' / 'transactions_full.csv'
     df = pd.read_csv(data_path)
     
     # Ensure datetime column

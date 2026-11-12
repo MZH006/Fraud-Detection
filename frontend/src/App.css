@@ -1,0 +1,38 @@
+body {
+  font-family: sans-serif;
+  max-width: 500px;
+  margin: 40px auto;
+  padding: 0 20px;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+input, button {
+  padding: 8px 12px;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+button {
+  background: #2563eb;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+.result-card {
+  margin-top: 24px;
+  padding: 16px;
+  border-radius: 8px;
+  border: 2px solid;
+}
+
+.result-card.LOW    { border-color: #16a34a; background: #f0fdf4; }
+.result-card.MEDIUM { border-color: #ca8a04; background: #fefce8; }
+.result-card.HIGH   { border-color: #dc2626; background: #fef2f2; }
+.result-card.CRITICAL { border-color: #7f1d1d; background: #fee2e2; }
