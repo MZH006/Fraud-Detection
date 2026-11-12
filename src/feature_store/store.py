@@ -5,6 +5,8 @@ Provides low-latency access to precomputed customer and terminal features.
 
 import os
 from datetime import datetime, timedelta
+
+LABEL_DELAY_DAYS = 7  # keep in sync with src/features.py
 from typing import Dict, Optional, List, Any, cast
 import pandas as pd
 from supabase import create_client, Client
@@ -213,7 +215,8 @@ class FeatureStore:
         Called by background worker.
         """
         try:
-            cutoff = datetime.now() - timedelta(days=30)
+            # Fetch 30 days plus the label delay so the delayed 30-day fraud rate is complete.
+            cutoff = datetime.now() - timedelta(days=30 + LABEL_DELAY_DAYS)
             
             response = self.client.table('transaction_history')\
                 .select('*')\
@@ -237,16 +240,22 @@ class FeatureStore:
                 'last_updated': now.isoformat(),
             }
             
+            # Fraud labels are only confirmed after LABEL_DELAY_DAYS, so fraud rates use
+            # [now - (delay + days), now - delay), matching src/features.py at training time.
+            label_cutoff = now - timedelta(days=LABEL_DELAY_DAYS)
             for days in [1, 7, 30]:
                 window_start = now - timedelta(days=days)
                 window_df = df[df['timestamp'] >= window_start]
-                
+                labelled_df = df[(df['timestamp'] >= label_cutoff - timedelta(days=days))
+                                 & (df['timestamp'] < label_cutoff)]
+
                 tx_count = len(window_df)
-                fraud_count = window_df['is_fraud'].sum()
-                
+                labelled_count = len(labelled_df)
+                fraud_count = labelled_df['is_fraud'].sum()
+
                 features[f'tx_count_{days}d'] = tx_count
                 features[f'fraud_count_{days}d'] = int(fraud_count)
-                features[f'fraud_rate_{days}d'] = float(fraud_count / tx_count) if tx_count > 0 else 0.0
+                features[f'fraud_rate_{days}d'] = float(fraud_count / labelled_count) if labelled_count > 0 else 0.0
                 features[f'avg_amount_{days}d'] = float(window_df['amount'].mean()) if tx_count > 0 else 0
             
             # High risk flag (fraud rate > 5% in last 7 days)

@@ -36,7 +36,8 @@ class Settings(BaseSettings):
 
     # Model
     MODEL_PATH: str = "./artifacts/fraud_detection_model_final.pkl"
-    MODEL_THRESHOLD: float = 0.9348
+    # None = use the threshold saved with the model artifact (chosen on validation).
+    MODEL_THRESHOLD: Optional[float] = None
 
     # Feature Engineering Thresholds
     HIGH_AMOUNT_THRESHOLD: float = 200.0

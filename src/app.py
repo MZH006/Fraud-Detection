@@ -123,7 +123,9 @@ def log_transaction_async(tx_data: dict, prediction: dict):
             "terminal_id": tx_data["terminal_id"],
             "amount": tx_data["amount"],
             "timestamp": tx_data["timestamp"],
-            "is_fraud": prediction["is_fraud"],
+            # is_fraud is the confirmed label, set later from chargebacks or investigations.
+            # Writing the model's own prediction here would feed it back into terminal fraud rates.
+            "is_fraud": False,
             "fraud_probability": prediction["fraud_probability"]
         }
         

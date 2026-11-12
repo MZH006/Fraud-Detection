@@ -1,6 +1,6 @@
 # 🛡️ Real-Time Fraud Detection System
 
-An end-to-end machine learning system for detecting fraudulent credit card transactions in real-time, achieving 90% fraud detection with less than 1% false alarm rate.
+An end-to-end machine learning system for detecting fraudulent credit card transactions in real-time, catching 75% of fraud while sending only 1% of transactions to review, evaluated with realistic 7-day label delays.
 
 ![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)
@@ -13,7 +13,8 @@ This project demonstrates a production-ready fraud detection system built from s
 
 ### Key Features
 -  **Real-time predictions** in under 1 second
--  **90.2% fraud recall** with 83.3% precision
+-  **75.3% fraud recall at 65.3% precision**, flagging 1% of transactions
+-  **Leakage-free features**: calendar windows and delayed fraud labels, shared by training and the live feature store
 -  **Feature store architecture** for low-latency inference
 -  **Asynchronous background processing** for feature updates
 -  **Comprehensive model evaluation** with proper time-series validation
@@ -21,18 +22,42 @@ This project demonstrates a production-ready fraud detection system built from s
 
 ## 📈 Model Performance
 
+Test period (days 155–182). Each threshold is chosen on validation to flag 1% of transactions, then applied unchanged to test. Reproduce with `python scripts/train.py`; results shift by about a point across XGBoost/scikit-learn versions.
+
 | Model | ROC-AUC | PR-AUC | Recall | Precision | Alert Rate | False Alarms |
 |-------|---------|--------|--------|-----------|------------|--------------|
-| **XGBoost** | **0.9849** | **0.9237** | **90.2%** | **83.3%** | **0.96%** | **431** |
-| Random Forest | 0.9841 | 0.8987 | 90.3% | 64.2% | 1.25% | 1,198 |
-| LightGBM | 0.9791 | 0.7508 | 90.9% | 63.6% | 1.27% | 1,240 |
-| Logistic Regression | 0.9845 | 0.7452 | 91.1% | 52.2% | 1.55% | 1,991 |
+| **XGBoost** | 0.902 | **0.735** | **75.3%** | **65.3%** | 1.02% | **955** |
+| Random Forest | 0.905 | 0.703 | 72.3% | 60.9% | 1.05% | 1,107 |
+| LightGBM | 0.899 | 0.624 | 69.7% | 61.7% | 1.00% | 1,030 |
+| Logistic Regression | 0.905 | 0.501 | 63.2% | 54.8% | 1.02% | 1,241 |
+
+XGBoost recall by fraud scenario: **96.3%** high-amount fraud, **68.7%** compromised terminals, **85.4%** compromised cards.
 
 ### Business Impact
-- **2,149 out of 2,382 frauds caught** (90.2% detection rate)
-- **Only 431 false alarms** (83.3% of flagged transactions are actual fraud)
-- **0.96% alert rate** (flags less than 1% of transactions for manual review)
-- **Operationally viable** for production deployment
+- **1,793 of 2,382 frauds caught** while reviewing about 1% of transactions
+- **955 false alarms**: roughly 2 in 3 alerts are real fraud
+- Compromised terminals are the hardest case: their fraud only becomes visible once labels arrive
+
+> **Earlier numbers were inflated.** A previous version reported 90.2% recall at 83.3% precision. Terminal fraud rates used the label of the *immediately previous* transaction, which is not known in practice. See [Key Learnings](#-key-learnings--challenges).
+
+---
+
+## 🚀 Getting Started
+
+```bash
+./setup.sh                        # creates .venv, installs dependencies, copies .env.example to .env
+source .venv/bin/activate
+# Edit .env with your SUPABASE_URL and SUPABASE_KEY
+```
+
+Generate the dataset with the [Fraud Detection Handbook](https://fraud-detection-handbook.github.io/fraud-detection-handbook/) simulator and save it as `data/raw/transactions_full.csv`. Then:
+
+```bash
+python scripts/train.py --save            # train, evaluate, and write artifacts/fraud_detection_model_final.pkl
+python src/initlialize/initialize.py      # load customer/terminal features into Supabase
+uvicorn src.app:app --reload              # API on http://localhost:8000
+pytest                                    # run the test suite
+```
 
 ---
 
@@ -124,7 +149,7 @@ This project demonstrates a production-ready fraud detection system built from s
 
 #### Terminal Aggregations (1-day, 7-day, 30-day windows)
 - Transaction count
-- Fraud rate (percentage of fraudulent transactions)
+- Fraud rate, counting only transactions at least 7 days old (labels arrive late)
 - Average transaction amount
 - High-risk terminal flag (>5% fraud rate)
 
@@ -137,14 +162,15 @@ This project demonstrates a production-ready fraud detection system built from s
 ## 🔬 Methodology
 
 ### 1. Data Leakage Prevention
-**Critical insight**: Standard rolling windows cause data leakage in time-series data.
+**Critical insight**: features may only use information known at prediction time, including *when labels become known*.
 ```python
-# Wrong: Future data leaks into training
-df['avg_amount'] = df['amount'].rolling(window=7).mean()
+# Wrong: "last 7 rows", and the previous transaction's fraud label is assumed to be known instantly
+df['fraud_rate'] = df.groupby('terminal')['is_fraud'].transform(lambda x: x.shift(1).rolling(7).mean())
 
-# Correct Method: Shift by 1 to use only past data
-df['avg_amount'] = df['amount'].shift(1).rolling(window=7).mean()
+# Correct: calendar windows, counting only labels at least 7 days old
+# fraud rate over [t - 14 days, t - 7 days); see src/features.py
 ```
+`tests/unit/test_features.py` checks that recent fraud is not visible and that windows are in calendar days.
 
 ### 2. Time-Based Train/Val/Test Split
 - **Train**: First 70% of days (chronological)
@@ -200,6 +226,10 @@ TEST 4: Suspicious High Amount 🚨
 **Problem**: Initial model achieved 100% accuracy which cannot be right  
 **Root Cause**: Rolling windows computed on sorted data before splitting  
 **Solution**: Implemented shifted rolling windows using `.shift(1)`
+
+**Second problem**: Even after shifting, results were too good (90% recall at 83% precision)  
+**Root Cause**: Terminal fraud rates used labels of transactions seconds old. In this dataset a compromised terminal is fraudulent for weeks, so "the last transaction here was fraud" nearly gave away the answer. Windows were also "last N rows" instead of "last N days", which didn't match the live feature store  
+**Solution**: Calendar windows plus a 7-day label delay, applied in both training (`src/features.py`) and serving (`feature_store/store.py`). Recall at a 1% alert budget dropped to a realistic 75%
 
 ### 2. Feature Store Design
 **Challenge**: Need historical customer/terminal data for real-time predictions  
