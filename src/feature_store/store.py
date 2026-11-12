@@ -1,27 +1,54 @@
+"""
+Feature store implementation using Supabase for fraud detection.
+Provides low-latency access to precomputed customer and terminal features.
+"""
+
 import os
-from datetime import datetime,timedelta
+from datetime import datetime, timedelta
 from typing import Dict, Optional, List, Any, cast
 import pandas as pd
 from supabase import create_client, Client
 from dotenv import load_dotenv
-import logging
+
+from config.logging_config import get_logger
 
 load_dotenv()
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class FeatureStore:
     """
-    Feature store using supabase
+    Feature store using Supabase for storing and retrieving precomputed features.
+
+    Provides low-latency access to customer and terminal aggregated features
+    (transaction counts, average amounts, fraud rates, etc.) that are used
+    for real-time fraud detection.
+
+    Attributes:
+        client: Supabase client instance
+        url: Supabase project URL
+        key: Supabase API key
+
+    Example:
+        >>> store = FeatureStore()
+        >>> features = store.get_customer_features(customer_id=123)
+        >>> features["CUSTOMER_AVG_AMOUNT_7D"]
+        75.5
     """
 
     def __init__(self):
+        """
+        Initialize feature store with Supabase connection.
+
+        Raises:
+            ValueError: If SUPABASE_URL or SUPABASE_KEY not set in environment
+        """
         self.url = os.getenv("SUPABASE_URL")
         self.key = os.getenv("SUPABASE_KEY")
 
         if not self.url or not self.key:
             raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set in .env")
-        
+
         self.client: Client = create_client(self.url, self.key)
         logger.info("Feature Store connected to Supabase")
     
