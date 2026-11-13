@@ -55,10 +55,6 @@ test_results.csv
 docker-compose.override.yml
 .dockerignore
 
-# Monitoring
-monitoring/prometheus/data/
-monitoring/grafana/data/
-
 # Backup files
 *.bak
 *.swp

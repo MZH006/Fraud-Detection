@@ -18,9 +18,9 @@ if [ ! -d ".venv" ]; then
     echo ""
     echo "Creating virtual environment..."
     python3 -m venv .venv
-    echo "✓ Virtual environment created"
+    echo "Virtual environment created"
 else
-    echo "✓ Virtual environment already exists"
+    echo "Virtual environment already exists"
 fi
 
 # Activate virtual environment
@@ -47,17 +47,17 @@ if [ ! -f ".env" ]; then
     echo ""
     echo "Creating .env from .env.example..."
     cp .env.example .env
-    echo "✓ Created .env file"
-    echo "⚠️  Please edit .env and add your SUPABASE_URL and SUPABASE_KEY"
+    echo "Created .env file"
+    echo "Edit .env and add your SUPABASE_URL and SUPABASE_KEY"
 else
-    echo "✓ .env file already exists"
+    echo ".env file already exists"
 fi
 
 # Install pre-commit hooks
 echo ""
 echo "Installing pre-commit hooks..."
 pre-commit install
-echo "✓ Pre-commit hooks installed"
+echo "Pre-commit hooks installed"
 
 # Run pre-commit on all files
 echo ""
@@ -66,7 +66,7 @@ pre-commit run --all-files || true  # Don't fail if there are formatting issues
 
 echo ""
 echo "=================================="
-echo "✅ Phase 1 Setup Complete!"
+echo "Setup complete."
 echo "=================================="
 echo ""
 echo "Next steps:"
@@ -77,11 +77,10 @@ echo ""
 echo "2. Activate virtual environment:"
 echo "   source .venv/bin/activate"
 echo ""
-echo "3. Run the application:"
-echo "   cd src && python app.py"
+echo "3. Train the model and start the API:"
+echo "   python scripts/train.py --save"
+echo "   uvicorn src.app:app --reload"
 echo ""
-echo "4. Test the API:"
-echo "   python test_api.py"
-echo ""
-echo "See PHASE1_COMPLETE.md for more details!"
+echo "4. Run the tests:"
+echo "   pytest"
 echo ""

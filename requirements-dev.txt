@@ -18,6 +18,4 @@ pylint==3.0.3
 pre-commit==3.6.0
 
 # Type Stubs
-types-redis==4.6.0.20240106
-types-requests==2.31.0.20240106
 pandas-stubs==2.1.4.231227

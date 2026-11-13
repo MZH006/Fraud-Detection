@@ -1,10 +1,5 @@
-# Docker Compose for local development
-version: '3.8'
-
+# Runs the API locally against your Supabase project (credentials from .env).
 services:
-  # ===========================================
-  # Main API Service
-  # ===========================================
   api:
     build:
       context: ..
@@ -15,100 +10,14 @@ services:
       - DEBUG=true
       - LOG_LEVEL=DEBUG
       - LOG_FORMAT=text
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
       - MODEL_PATH=/app/artifacts/fraud_detection_model_final.pkl
-    depends_on:
-      redis:
-        condition: service_healthy
     volumes:
       - ../artifacts:/app/artifacts:ro
       - ../src:/app/src:ro
-    restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
-    networks:
-      - fraud-network
-
-  # ===========================================
-  # Redis Cache
-  # ===========================================
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    command: redis-server --appendonly yes
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-    networks:
-      - fraud-network
-
-  # ===========================================
-  # Prometheus (Metrics)
-  # ===========================================
-  prometheus:
-    image: prom/prometheus:latest
-    ports:
-      - "9090:9090"
-    volumes:
-      - ../monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
-      - '--web.enable-lifecycle'
-    restart: unless-stopped
-    networks:
-      - fraud-network
-
-  # ===========================================
-  # Grafana (Dashboards)
-  # ===========================================
-  grafana:
-    image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_USERS_ALLOW_SIGN_UP=false
-    volumes:
-      - ../monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
-      - grafana_data:/var/lib/grafana
-    depends_on:
-      - prometheus
-    restart: unless-stopped
-    networks:
-      - fraud-network
-
-# ===========================================
-# Volumes
-# ===========================================
-volumes:
-  redis_data:
-    driver: local
-  prometheus_data:
-    driver: local
-  grafana_data:
-    driver: local
-
-# ===========================================
-# Networks
-# ===========================================
-networks:
-  fraud-network:
-    driver: bridge
