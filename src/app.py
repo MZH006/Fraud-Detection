@@ -1,7 +1,4 @@
-"""
-FastAPI application for real-time fraud detection.
-Provides REST API endpoints for fraud prediction with feature store integration.
-"""
+"""FastAPI service that scores card transactions for fraud."""
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,10 +13,8 @@ from config.logging_config import setup_logging, get_logger, set_request_id
 from src.model_utils import score_transaction
 from src.feature_store.store import FeatureStore
 
-# Load settings
 settings = get_settings()
 
-# Setup logging
 setup_logging(
     log_level=settings.LOG_LEVEL,
     log_format=settings.LOG_FORMAT,
@@ -27,7 +22,6 @@ setup_logging(
 )
 logger = get_logger(__name__)
 
-# Load model
 try:
     artifact = joblib.load(settings.MODEL_PATH)
     MODEL = artifact["model"]
@@ -44,7 +38,6 @@ except Exception as e:
     logger.error(f"Failed to load model from {settings.MODEL_PATH}: {e}")
     raise
 
-# Initialize feature store
 feature_store = FeatureStore()
 
 app = FastAPI(
@@ -54,7 +47,6 @@ app = FastAPI(
     debug=settings.DEBUG
 )
 
-# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
@@ -111,12 +103,8 @@ class PredictionResponse(BaseModel):
 
 
 def log_transaction_async(tx_data: dict, prediction: dict):
-    """
-    Background task to log transaction and update feature store.
-    This runs AFTER the response is sent to the user.
-    """
+    """Log the transaction after the response is sent."""
     try:
-        # Log to transaction history
         transaction = {
             "transaction_id": prediction["transaction_id"],
             "customer_id": tx_data["customer_id"],
@@ -138,11 +126,7 @@ def log_transaction_async(tx_data: dict, prediction: dict):
 
 @app.get("/")
 def root():
-    """
-    Health check endpoint.
-
-    Returns basic service information and model status.
-    """
+    """Health check endpoint."""
     return {
         "status": "healthy",
         "service": settings.APP_NAME,
@@ -154,34 +138,7 @@ def root():
 
 @app.post("/predict", response_model=PredictionResponse)
 async def predict(tx: Transaction, background_tasks: BackgroundTasks):
-    """
-    Predict fraud probability for a single transaction.
-
-    This endpoint performs real-time fraud detection by:
-    1. Extracting features from the transaction
-    2. Fetching historical features from the feature store
-    3. Running ML model inference
-    4. Returning fraud probability and risk level
-
-    Args:
-        tx: Transaction to analyze
-        background_tasks: FastAPI background tasks for async logging
-
-    Returns:
-        PredictionResponse with fraud_probability, is_fraud, risk_level, etc.
-
-    Raises:
-        HTTPException: 400 for validation errors, 500 for server errors
-
-    Example:
-        POST /predict
-        {
-            "customer_id": 123,
-            "terminal_id": 456,
-            "amount": 125.50,
-            "timestamp": "2024-01-15T14:30:00"
-        }
-    """
+    """Predict fraud probability for a single transaction."""
     start_time = datetime.now()
 
     try:
@@ -202,7 +159,6 @@ async def predict(tx: Transaction, background_tasks: BackgroundTasks):
             feature_store=feature_store
         )
 
-        # Calculate processing time
         processing_time = (datetime.now() - start_time).total_seconds() * 1000
         result["processing_time_ms"] = round(processing_time, 2)
 
@@ -214,7 +170,6 @@ async def predict(tx: Transaction, background_tasks: BackgroundTasks):
             "processing_time_ms": processing_time
         })
 
-        # Log transaction asynchronously
         background_tasks.add_task(log_transaction_async, tx_dict, result)
 
         return result
@@ -229,28 +184,7 @@ async def predict(tx: Transaction, background_tasks: BackgroundTasks):
 
 @app.post("/batch-predict")
 async def batch_predict(transactions: List[Transaction]):
-    """
-    Batch prediction for multiple transactions.
-
-    Processes multiple transactions in a single request. Useful for
-    processing queued transactions or batch jobs.
-
-    Args:
-        transactions: List of transactions to analyze
-
-    Returns:
-        Dictionary with:
-            - predictions: List of prediction results
-            - count: Total number of transactions processed
-            - errors: Number of failed predictions (if any)
-
-    Example:
-        POST /batch-predict
-        [
-            {"customer_id": 123, "terminal_id": 456, "amount": 100.0, ...},
-            {"customer_id": 124, "terminal_id": 457, "amount": 200.0, ...}
-        ]
-    """
+    """Batch prediction for multiple transactions."""
     results = []
     error_count = 0
 

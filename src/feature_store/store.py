@@ -1,7 +1,4 @@
-"""
-Feature store implementation using Supabase for fraud detection.
-Provides low-latency access to precomputed customer and terminal features.
-"""
+"""Read and write precomputed customer and terminal features in Supabase."""
 
 import os
 from datetime import datetime, timedelta
@@ -19,32 +16,10 @@ load_dotenv()
 logger = get_logger(__name__)
 
 class FeatureStore:
-    """
-    Feature store using Supabase for storing and retrieving precomputed features.
-
-    Provides low-latency access to customer and terminal aggregated features
-    (transaction counts, average amounts, fraud rates, etc.) that are used
-    for real-time fraud detection.
-
-    Attributes:
-        client: Supabase client instance
-        url: Supabase project URL
-        key: Supabase API key
-
-    Example:
-        >>> store = FeatureStore()
-        >>> features = store.get_customer_features(customer_id=123)
-        >>> features["CUSTOMER_AVG_AMOUNT_7D"]
-        75.5
-    """
+    """Feature store using Supabase for storing and retrieving precomputed features."""
 
     def __init__(self):
-        """
-        Initialize feature store with Supabase connection.
-
-        Raises:
-            ValueError: If SUPABASE_URL or SUPABASE_KEY not set in environment
-        """
+        """Initialize feature store with Supabase connection."""
         self.url = os.getenv("SUPABASE_URL")
         self.key = os.getenv("SUPABASE_KEY")
 
@@ -56,10 +31,7 @@ class FeatureStore:
     
 
     def get_customer_features(self, customer_id: int) -> Dict[str, float]:
-        """
-        Retrieve customer features from feature store.
-        Returns default values if customer not found.
-        """
+        """Retrieve customer features from feature store. Returns default values if customer not found."""
         try:
             response = self.client.table('customer_features').select('*').eq('customer_id', customer_id).execute()
             
@@ -86,10 +58,7 @@ class FeatureStore:
         
 
     def get_terminal_features(self, terminal_id: int) -> Dict[str, float]:
-        """
-        Retrieve terminal features from feature store.
-        Returns default values if terminal not found.
-        """
+        """Retrieve terminal features from feature store. Returns default values if terminal not found."""
         try:
             response = self.client.table('terminal_features').select('*').eq('terminal_id', terminal_id).execute()
             
@@ -147,9 +116,7 @@ class FeatureStore:
         }
     
     def log_transaction(self, transaction: Dict) -> bool:
-        """
-        Log transaction to history table.
-        """
+        """Log transaction to history table."""
         try:
             data = {
                 'transaction_id': transaction.get('transaction_id', f"tx_{datetime.now().timestamp()}"),
@@ -210,10 +177,7 @@ class FeatureStore:
             logger.error(f"Error updating customer features: {e}")
 
     def update_terminal_features(self, terminal_id: int):
-        """
-        Recompute terminal features from recent transaction history.
-        Called by background worker.
-        """
+        """Recompute terminal features from recent transaction history. Called by background worker."""
         try:
             # Fetch 30 days plus the label delay so the delayed 30-day fraud rate is complete.
             cutoff = datetime.now() - timedelta(days=30 + LABEL_DELAY_DAYS)
@@ -258,7 +222,6 @@ class FeatureStore:
                 features[f'fraud_rate_{days}d'] = float(fraud_count / labelled_count) if labelled_count > 0 else 0.0
                 features[f'avg_amount_{days}d'] = float(window_df['amount'].mean()) if tx_count > 0 else 0
             
-            # High risk flag (fraud rate > 5% in last 7 days)
             features['high_risk'] = features['fraud_rate_7d'] > 0.05
             
             self.client.table('terminal_features').upsert(features).execute()

@@ -1,7 +1,4 @@
-"""
-Configuration management for Fraud Detection API
-Uses pydantic-settings for type-safe configuration with environment variables
-"""
+"""Settings loaded from environment variables and .env."""
 
 from pydantic_settings import BaseSettings
 from functools import lru_cache
@@ -43,11 +40,5 @@ class Settings(BaseSettings):
 
 @lru_cache()
 def get_settings() -> Settings:
-    """
-    Get cached settings instance.
-    Uses lru_cache to ensure settings are only loaded once.
-
-    Returns:
-        Settings: Application settings instance
-    """
+    """Get cached settings instance. Uses lru_cache to ensure settings are only loaded once."""
     return Settings()

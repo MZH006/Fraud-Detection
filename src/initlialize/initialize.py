@@ -25,9 +25,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class FeatureStoreInitializer:
-    """
-    Intialize historical transaction data mainly for my testing purpose
-    """
+    """Intialize historical transaction data mainly for my testing purpose."""
 
     def __init__(self, df: pd.DataFrame) -> None:
         self.df = df
@@ -35,9 +33,7 @@ class FeatureStoreInitializer:
         logger.info(f"initializer loaded with {len(df):,} transactions")
 
     def populate_customer_features(self, batch_size: int = 100):
-        """
-        Compute and store features for the customers
-        """
+        """Compute and store features for the customers."""
 
         logger.info("="*60)
         logger.info("POPULATING CUSTOMER FEATURES")
@@ -101,9 +97,7 @@ class FeatureStoreInitializer:
             logger.error(f"Error inserting customer batch: {e}")
 
     def populate_terminal_features(self, batch_size: int = 100):
-        """
-        Compute and store terminal features for all terminals.
-        """
+        """Compute and store terminal features for all terminals."""
         logger.info("="*60)
         logger.info("POPULATING TERMINAL FEATURES")
         logger.info("="*60)
@@ -172,12 +166,7 @@ class FeatureStoreInitializer:
             logger.error(f"Error inserting terminal batch: {e}")
     
     def populate_transaction_history(self, batch_size: int = 1000):
-        """
-        Load transaction history into the database.
-        This enables the background worker to recompute features.
-        
-        Note: For large datasets (1M+ rows), consider only loading recent data.
-        """
+        """Load transaction history into the database. This enables the background worker to recompute features."""
         logger.info("="*60)
         logger.info("POPULATING TRANSACTION HISTORY")
         logger.info("="*60)
@@ -223,9 +212,7 @@ class FeatureStoreInitializer:
             logger.error(f"Error inserting transaction batch: {e}")
     
     def run_full_initialization(self):
-        """
-        Run complete initialization process.
-        """
+        """Run complete initialization process."""
         logger.info("\n" + "="*60)
         logger.info("STARTING FEATURE STORE INITIALIZATION")
         logger.info("="*60)
@@ -277,10 +264,7 @@ def clear_existing_data():
         return False
 
 def main():
-    """
-    Main initialization script.
-    Run this ONCE
-    """
+    """Main initialization script. Run this ONCE."""
     # Build path relative to this script's location
     script_dir = Path(__file__).parent
     data_path = script_dir.parent.parent / 'data' / 'raw' / 'transactions_full.csv'
