@@ -1,297 +1,72 @@
-# 🛡️ Real-Time Fraud Detection System
+# Real-Time Fraud Detection
 
-An end-to-end machine learning system for detecting fraudulent credit card transactions in real-time, catching 76% of fraud while sending only 1% of transactions to review, evaluated with realistic 7-day label delays.
+A FastAPI service that scores card transactions with XGBoost, using each customer's and terminal's recent history from a feature store. On held-out data it catches **76% of fraud while flagging 1% of transactions** for review, and about 2 in 3 alerts are real fraud.
 
-![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)
-![XGBoost](https://img.shields.io/badge/XGBoost-2.0+-orange.svg)
-![License](https://img.shields.io/badge/License-MIT-yellow.svg)
+## Results
 
-## 🎯 Project Overview
+Test period: the last 28 of 183 days. Each model's threshold is chosen on the validation period to flag 1% of transactions, then applied unchanged to test.
 
-This project demonstrates a production-ready fraud detection system built from scratch, covering the complete ML lifecycle from data exploration to API deployment. The system processes transactions in real-time, leveraging historical customer and terminal behavior to identify fraudulent patterns.
+| Model | PR-AUC | Recall | Precision | False alarms |
+|-------|--------|--------|-----------|--------------|
+| **XGBoost** | **0.754** | **76.0%** | 65.8% | 939 |
+| Random Forest | 0.722 | 76.1% | 64.5% | 1,000 |
+| LightGBM | 0.656 | 75.2% | 66.7% | 896 |
+| Logistic Regression | 0.524 | 66.5% | 55.6% | 1,264 |
 
-### Key Features
--  **Real-time predictions** in under 1 second
--  **76.0% fraud recall at 65.8% precision**, flagging 1% of transactions
--  **Leakage-free features**: calendar windows and delayed fraud labels, shared by training and the live feature store
--  **Feature store architecture** for low-latency inference
--  **Asynchronous background processing** for feature updates
--  **Comprehensive model evaluation** with proper time-series validation
+By fraud type, XGBoost catches 98% of high-amount fraud, 88% of stolen-card fraud, and 69% of fraud at compromised terminals. Results move by about a point across XGBoost and scikit-learn versions; the committed model scored 76.7% recall at 66.0% precision.
 
+## How it works
 
-## 📈 Model Performance
+**Data.** 1.75M simulated card transactions over 183 days from the [Fraud Detection Handbook](https://fraud-detection-handbook.github.io/fraud-detection-handbook/) simulator, with about 5,000 customers and 10,000 terminals. 0.84% are fraud, from three patterns: purchases over $220, terminals compromised for 28 days, and stolen cards that spend about 5x the owner's usual amount for 14 days.
 
-Test period (days 155–182). Each threshold is chosen on validation to flag 1% of transactions, then applied unchanged to test. Reproduce with `python scripts/train.py`; results shift by about a point across XGBoost/scikit-learn versions.
+**Features** (`src/features.py`). 28 per transaction: time of day and week, the amount, the customer's spending over the previous 1, 7 and 30 days (including this purchase as a multiple of their average), and the terminal's volume and fraud rate over the same windows.
 
-| Model | ROC-AUC | PR-AUC | Recall | Precision | Alert Rate | False Alarms |
-|-------|---------|--------|--------|-----------|------------|--------------|
-| **XGBoost** | 0.897 | **0.754** | **76.0%** | **65.8%** | 1.02% | **939** |
-| Random Forest | 0.904 | 0.722 | 76.1% | 64.5% | 1.05% | 1,000 |
-| LightGBM | 0.894 | 0.656 | 75.2% | 66.7% | 1.00% | 896 |
-| Logistic Regression | 0.902 | 0.524 | 66.5% | 55.6% | 1.06% | 1,264 |
+**Serving.** `POST /predict` reads the customer's and terminal's precomputed features from Supabase, builds the same 28 features, and scores the transaction in well under a second. The transaction is logged after the response is sent.
 
-XGBoost recall by fraud scenario: **97.8%** high-amount fraud, **68.5%** compromised terminals, **87.9%** compromised cards. XGBoost trains with early stopping on validation PR-AUC (148 trees).
+## Design decisions
 
-**What improved it:** adding the ratio of each purchase to the customer's usual spend raised validation PR-AUC from 0.725 to 0.749, mostly by catching more stolen-card fraud, which runs a median 3.8x normal spend. A hand-built risk score was removed: it made no measurable difference, and the model now learns its own combinations.
+- **Fraud labels arrive late.** A transaction's fraud label is only known days later, after a chargeback or investigation. Terminal fraud rates therefore count only transactions at least 7 days old. An earlier version used the previous transaction's label directly; that leak inflated recall to 91% at 81% precision.
+- **Split by time, not at random.** Train on days 0 to 127, validate on 128 to 154, test on 155 to 182. A random split would let the model learn from the future.
+- **Evaluate at a fixed review budget.** A fraud team can review a fixed share of transactions, so the question is how much fraud a 1% budget catches, not recall at an arbitrary threshold.
+- **PR-AUC, not accuracy.** With 0.84% fraud, predicting "not fraud" every time is 99.2% accurate.
+- **One definition of each feature.** Training, the loader and the API follow the same window and delay rules, and tests fail if serving stops producing a feature the model expects.
 
-### Business Impact
-- **1,810 of 2,382 frauds caught** while reviewing about 1% of transactions
-- **939 false alarms**: roughly 2 in 3 alerts are real fraud
-- Compromised terminals are the hardest case: their fraud only becomes visible once labels arrive
+## Limitations
 
-> **Earlier numbers were inflated.** A previous version reported 90.2% recall at 83.3% precision. Terminal fraud rates used the label of the *immediately previous* transaction, which is not known in practice. See [Key Learnings](#-key-learnings--challenges).
+- **Live history isn't refreshed.** `FeatureStore` can recompute a customer's or terminal's features from `transaction_history`, but nothing calls it yet, so live traffic is logged without updating the stored features.
+- **No way to record confirmed fraud.** New transactions are stored as not fraud. Without a feedback endpoint, terminal fraud rates fade to zero as the loaded history ages out.
+- **Some fraud is undetectable here.** About a quarter of compromised-terminal fraud happens before any label at that terminal is confirmed, and those purchases look normal.
+- **Simulated data.** Real fraud is messier than three planted patterns.
 
----
+## Running it
 
-## 🚀 Getting Started
+Requires Python 3.9+ and a Supabase project with `customer_features`, `terminal_features` and `transaction_history` tables.
 
 ```bash
-./setup.sh                        # creates .venv, installs dependencies, copies .env.example to .env
-source .venv/bin/activate
-# Edit .env with your SUPABASE_URL and SUPABASE_KEY
+./setup.sh                    # virtualenv, dependencies, and .env from .env.example
+source .venv/bin/activate     # then add SUPABASE_URL and SUPABASE_KEY to .env
 ```
 
-Generate the dataset with the [Fraud Detection Handbook](https://fraud-detection-handbook.github.io/fraud-detection-handbook/) simulator and save it as `data/raw/transactions_full.csv`. Then:
+Save the simulator's output as `data/raw/transactions_full.csv`, then:
 
 ```bash
-python scripts/train.py --save            # train, evaluate, and write artifacts/fraud_detection_model_final.pkl
-python src/initlialize/initialize.py      # load customer/terminal features into Supabase
-uvicorn src.app:app --reload              # API on http://localhost:8000
-pytest                                    # run the test suite
+python scripts/train.py --save        # train, evaluate, write artifacts/fraud_detection_model_final.pkl
+python scripts/load_feature_store.py  # load features and history into Supabase
+uvicorn src.app:app --reload          # API on http://localhost:8000
+pytest                                # 105 tests
 ```
 
----
+`docker compose -f docker/docker-compose.yml up` runs the API in a container. The `frontend/` folder is a small React form for trying predictions.
 
-## 🏗️ System Architecture
+## Layout
+
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Transaction Input                         │
-│              (customer_id, terminal_id, amount)              │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   Feature Extraction                         │
-│  • Temporal: Hour, day of week, cyclical encoding           │
-│  • Amount: Value, high amount flags                          │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│              Feature Store (Supabase/PostgreSQL)             │
-│  ┌──────────────────┐         ┌──────────────────┐         │
-│  │ Customer Features│         │ Terminal Features│         │
-│  │ • Avg amount 7d  │         │ • Fraud rate 7d  │         │
-│  │ • Tx count 30d   │         │ • Tx count 30d   │         │
-│  │ • Std deviation  │         │ • High risk flag │         │
-│  └──────────────────┘         └──────────────────┘         │
-└────────────────────────┬────────────────────────────────────┘
-                         │ 
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   Feature Enrichment                         │
-│  • Combine real-time + historical features                  │
-│  • Calculate deviation scores                                │
-│  • Compute risk scores                                       │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│                  XGBoost Model Inference                     │
-│              (28 features → fraud probability)              │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│                      Decision Output                         │
-│  fraud_probability: 0.0-1.0                                 │
-│  is_fraud: true/false (threshold: 0.9348)                   │
-│  risk_level: LOW/MEDIUM/HIGH/CRITICAL                       │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│            Background Processing (Async)                     │
-│  • Log transaction to database                              │
-│  • Queue for feature store update                           │
-│  • Update customer/terminal statistics                      │
-└─────────────────────────────────────────────────────────────┘
+src/features.py           feature definitions shared by training and tests
+src/model_utils.py        builds features for one transaction and scores it
+src/feature_store/        Supabase reads and writes
+src/app.py                FastAPI service
+scripts/train.py          trains and evaluates the four models
+scripts/load_feature_store.py   loads the feature store from the CSV
+notebooks/fraud.ipynb     exploration, including an earlier pass on the Kaggle dataset
+tests/                    unit and API tests
 ```
-
----
-
-## 📊 Dataset & Features
-
-### Data Source
-- **Simulated transaction data** from [Fraud Detection Handbook](https://fraud-detection-handbook.github.io/fraud-detection-handbook/)
-- **1,754,155 transactions** over 183 days
-- **5,000 customers** and **10,000 terminals**
-- **0.84% fraud rate** (14,681 fraudulent transactions)
-
-### Fraud Scenarios
-1. **Scenario 1**: High amount transactions (>$220)
-2. **Scenario 2**: Compromised terminals (2 terminals/day × 28 days)
-3. **Scenario 3**: Compromised cards (3 customers/day × 14 days)
-
-### Feature Engineering (28 features, `src/features.py`)
-
-#### Temporal Features
-- Hour of day (sine/cosine encoding for cyclical nature)
-- Day of week
-- Weekend indicator
-- Night transaction flag (10pm-6am)
-- Transaction amount
-
-#### Customer Aggregations (1-day, 7-day, 30-day windows)
-- Transaction count
-- Average transaction amount
-- Standard deviation of amounts
-- Amount deviation from normal behavior (z-score)
-- Amount as a multiple of the customer's average spend
-
-#### Terminal Aggregations (1-day, 7-day, 30-day windows)
-- Transaction count
-- Fraud rate, counting only transactions at least 7 days old (labels arrive late)
-- Average transaction amount
-
----
-
-## 🔬 Methodology
-
-### 1. Data Leakage Prevention
-**Critical insight**: features may only use information known at prediction time, including *when labels become known*.
-```python
-# Wrong: "last 7 rows", and the previous transaction's fraud label is assumed to be known instantly
-df['fraud_rate'] = df.groupby('terminal')['is_fraud'].transform(lambda x: x.shift(1).rolling(7).mean())
-
-# Correct: calendar windows, counting only labels at least 7 days old
-# fraud rate over [t - 14 days, t - 7 days); see src/features.py
-```
-`tests/unit/test_features.py` checks that recent fraud is not visible and that windows are in calendar days.
-
-### 2. Time-Based Train/Val/Test Split
-- **Train**: First 70% of days (chronological)
-- **Validation**: Next 15% of days
-- **Test**: Last 15% of days
-
-Ensures model is evaluated on future data it hasn't seen, mimicking production conditions.
-
-### 3. Handling Class Imbalance
-- **Class weighting**: `scale_pos_weight` for tree models
-- **Threshold optimization**: Tuned to balance recall vs precision
-- **Evaluation metrics**: PR-AUC (more informative than ROC-AUC for imbalanced data)
-
-### 4. Model Calibration
-Applied isotonic calibration to all models to ensure fraud probabilities are well-calibrated.
-
----
-
-
-## 🧪 Testing
-
-Run the comprehensive test suite:
-```bash
-python test_api.py
-```
-
-This will:
-- Test all API endpoints
-- Run 20+ prediction scenarios
-- Measure performance consistency
-- Generate `test_results.csv` with detailed results
-
-### Example Test Output
-```
-TEST 1: Health Check ✅
-TEST 2: System Statistics ✅
-TEST 3: Legitimate Transaction ✅
-  Fraud Probability: 0.0467
-  Decision: LEGITIMATE
-  Processing Time: 42.3ms
-
-TEST 4: Suspicious High Amount 🚨
-  Fraud Probability: 0.9988
-  Decision: FRAUD
-  Processing Time: 38.7ms
-```
-
----
-
-## 🔑 Key Learnings & Challenges
-
-### 1. Data Leakage in Time-Series
-**Problem**: Initial model achieved 100% accuracy which cannot be right  
-**Root Cause**: Rolling windows computed on sorted data before splitting  
-**Solution**: Implemented shifted rolling windows using `.shift(1)`
-
-**Second problem**: Even after shifting, results were too good (90% recall at 83% precision)  
-**Root Cause**: Terminal fraud rates used labels of transactions seconds old. In this dataset a compromised terminal is fraudulent for weeks, so "the last transaction here was fraud" nearly gave away the answer. Windows were also "last N rows" instead of "last N days", which didn't match the live feature store  
-**Solution**: Calendar windows plus a 7-day label delay, applied in both training (`src/features.py`) and serving (`feature_store/store.py`). Recall at a 1% alert budget dropped to a realistic 75%
-
-### 2. Feature Store Design
-**Challenge**: Need historical customer/terminal data for real-time predictions  
-**Solution**: Pre-compute aggregations and store in database for 10ms lookup
-
-### 3. Threshold Optimization
-**Challenge**: Balance between catching fraud (recall) and minimizing false alarms (precision)  
-**Solution**: Optimize threshold to achieve business constraints (e.g., <2% alert rate)
-
-### 4. Class Imbalance
-**Challenge**: Only 0.84% fraud rate in dataset  
-**Solution**: Used PR-AUC metric, class weighting, and proper stratification
-
----
-
-## Future Improvements
-
-### Performance Optimization
-- [ ] Replace PostgreSQL with **Redis** for <10ms feature lookup
-- [ ] Implement **connection pooling** to reduce database overhead
-- [ ] Add **caching layer** for frequently accessed features
-
-### Production Enhancements
-- [ ] Add **Kafka** for real-time streaming instead of REST API
-- [ ] Implement **A/B testing** framework for model comparison
-- [ ] Create **monitoring dashboard** (Grafana) for model performance
-- [ ] Add **SHAP values** for model explainability
-
-### MLOps
-- [ ] Set up **CI/CD pipeline** with GitHub Actions
-- [ ] Implement **automated model retraining** on new fraud patterns
-- [ ] Add **model versioning** and rollback capability
-- [ ] Create **Docker container** for easy deployment
-
-### Feature Engineering
-- [ ] Add **graph features** (customer-terminal transaction networks)
-- [ ] Implement **sequence models** (LSTM) for transaction patterns
-- [ ] Include **geographical features** (location-based risk)
-
----
-
-## Tech Stack
-
-| Category | Technologies |
-|----------|-------------|
-| **ML/Data Science** | scikit-learn, XGBoost, LightGBM, pandas, NumPy |
-| **API** | FastAPI, Pydantic, Uvicorn |
-| **Database** | PostgreSQL, Supabase |
-| **Testing** | pytest, requests |
-| **Visualization** | Matplotlib, Seaborn |
-| **Deployment** | Docker (planned), AWS (planned) |
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-## 🙏 Acknowledgments
-
-- Dataset from [Fraud Detection Handbook](https://fraud-detection-handbook.github.io/fraud-detection-handbook/) by Le Borgne et al.
-- Original Dataset in notebook found : https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud/data
-- Inspired by production fraud detection systems
-- Thanks to the open-source ML community for excellent tools and libraries
----
