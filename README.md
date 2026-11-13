@@ -40,7 +40,7 @@ By fraud type, XGBoost catches 98% of high-amount fraud, 88% of stolen-card frau
 
 ## Running it
 
-Requires Python 3.9+ and a Supabase project with `customer_features`, `terminal_features` and `transaction_history` tables.
+Requires Python 3.11+ and a Supabase project with `customer_features`, `terminal_features` and `transaction_history` tables.
 
 ```bash
 ./setup.sh                    # virtualenv, dependencies, and .env from .env.example

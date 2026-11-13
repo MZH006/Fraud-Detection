@@ -1,6 +1,6 @@
 # Multi-stage build for optimized image size
 # Stage 1: Builder
-FROM python:3.9-slim as builder
+FROM python:3.12-slim AS builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
@@ -20,7 +20,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 
 # Stage 2: Production
-FROM python:3.9-slim
+FROM python:3.12-slim
 
 # Build arguments for metadata
 ARG BUILD_DATE
@@ -32,9 +32,7 @@ LABEL org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.title="Fraud Detection API" \
-      org.opencontainers.image.description="Real-time fraud detection service" \
-      org.opencontainers.image.vendor="Your Company" \
-      maintainer="your-email@example.com"
+      org.opencontainers.image.description="Real-time fraud detection service"
 
 # Install runtime dependencies only
 RUN apt-get update && apt-get install -y \
