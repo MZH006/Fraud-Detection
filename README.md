@@ -1,6 +1,6 @@
 # 🛡️ Real-Time Fraud Detection System
 
-An end-to-end machine learning system for detecting fraudulent credit card transactions in real-time, catching 75% of fraud while sending only 1% of transactions to review, evaluated with realistic 7-day label delays.
+An end-to-end machine learning system for detecting fraudulent credit card transactions in real-time, catching 76% of fraud while sending only 1% of transactions to review, evaluated with realistic 7-day label delays.
 
 ![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)
@@ -13,7 +13,7 @@ This project demonstrates a production-ready fraud detection system built from s
 
 ### Key Features
 -  **Real-time predictions** in under 1 second
--  **75.3% fraud recall at 65.3% precision**, flagging 1% of transactions
+-  **76.0% fraud recall at 65.8% precision**, flagging 1% of transactions
 -  **Leakage-free features**: calendar windows and delayed fraud labels, shared by training and the live feature store
 -  **Feature store architecture** for low-latency inference
 -  **Asynchronous background processing** for feature updates
@@ -26,16 +26,18 @@ Test period (days 155–182). Each threshold is chosen on validation to flag 1% 
 
 | Model | ROC-AUC | PR-AUC | Recall | Precision | Alert Rate | False Alarms |
 |-------|---------|--------|--------|-----------|------------|--------------|
-| **XGBoost** | 0.902 | **0.735** | **75.3%** | **65.3%** | 1.02% | **955** |
-| Random Forest | 0.905 | 0.703 | 72.3% | 60.9% | 1.05% | 1,107 |
-| LightGBM | 0.899 | 0.624 | 69.7% | 61.7% | 1.00% | 1,030 |
-| Logistic Regression | 0.905 | 0.501 | 63.2% | 54.8% | 1.02% | 1,241 |
+| **XGBoost** | 0.897 | **0.754** | **76.0%** | **65.8%** | 1.02% | **939** |
+| Random Forest | 0.904 | 0.722 | 76.1% | 64.5% | 1.05% | 1,000 |
+| LightGBM | 0.894 | 0.656 | 75.2% | 66.7% | 1.00% | 896 |
+| Logistic Regression | 0.902 | 0.524 | 66.5% | 55.6% | 1.06% | 1,264 |
 
-XGBoost recall by fraud scenario: **96.3%** high-amount fraud, **68.7%** compromised terminals, **85.4%** compromised cards.
+XGBoost recall by fraud scenario: **97.8%** high-amount fraud, **68.5%** compromised terminals, **87.9%** compromised cards. XGBoost trains with early stopping on validation PR-AUC (148 trees).
+
+**What improved it:** adding the ratio of each purchase to the customer's usual spend raised validation PR-AUC from 0.725 to 0.749, mostly by catching more stolen-card fraud, which runs a median 3.8x normal spend. A hand-built risk score was removed: it made no measurable difference, and the model now learns its own combinations.
 
 ### Business Impact
-- **1,793 of 2,382 frauds caught** while reviewing about 1% of transactions
-- **955 false alarms**: roughly 2 in 3 alerts are real fraud
+- **1,810 of 2,382 frauds caught** while reviewing about 1% of transactions
+- **939 false alarms**: roughly 2 in 3 alerts are real fraud
 - Compromised terminals are the hardest case: their fraud only becomes visible once labels arrive
 
 > **Earlier numbers were inflated.** A previous version reported 90.2% recall at 83.3% precision. Terminal fraud rates used the label of the *immediately previous* transaction, which is not known in practice. See [Key Learnings](#-key-learnings--challenges).
@@ -97,7 +99,7 @@ pytest                                    # run the test suite
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                  XGBoost Model Inference                     │
-│              (30+ features → fraud probability)              │
+│              (28 features → fraud probability)              │
 └────────────────────────┬────────────────────────────────────┘
                          │
                          ▼
@@ -132,30 +134,26 @@ pytest                                    # run the test suite
 2. **Scenario 2**: Compromised terminals (2 terminals/day × 28 days)
 3. **Scenario 3**: Compromised cards (3 customers/day × 14 days)
 
-### Feature Engineering (30+ features)
+### Feature Engineering (28 features, `src/features.py`)
 
 #### Temporal Features
 - Hour of day (sine/cosine encoding for cyclical nature)
 - Day of week
 - Weekend indicator
 - Night transaction flag (10pm-6am)
+- Transaction amount
 
 #### Customer Aggregations (1-day, 7-day, 30-day windows)
 - Transaction count
 - Average transaction amount
 - Standard deviation of amounts
-- Amount deviation from normal behavior
-- High deviation flag (>2 standard deviations)
+- Amount deviation from normal behavior (z-score)
+- Amount as a multiple of the customer's average spend
 
 #### Terminal Aggregations (1-day, 7-day, 30-day windows)
 - Transaction count
 - Fraud rate, counting only transactions at least 7 days old (labels arrive late)
 - Average transaction amount
-- High-risk terminal flag (>5% fraud rate)
-
-#### Interaction Features
-- Night + high amount combination
-- Combined risk score (weighted sum of risk indicators)
 
 ---
 

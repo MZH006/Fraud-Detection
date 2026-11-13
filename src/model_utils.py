@@ -176,7 +176,13 @@ def enrich_with_feature_store(
     all_features['CUSTOMER_AMOUNT_DEVIATION'] = float(np.clip(amount_deviation, -10, 10))
     all_features['CUSTOMER_HIGH_DEVIATION'] = 1.0 if abs(amount_deviation) > 2 else 0.0
 
-    # 2. Combined risk score (weighted sum of risk indicators)
+    # 2. Amount relative to the customer's usual spend (same rule as src/features.py)
+    for window in (1, 7, 30):
+        avg = customer_features[f'CUSTOMER_AVG_AMOUNT_{window}D']
+        all_features[f'AMOUNT_TO_CUSTOMER_AVG_{window}D'] = amount / avg if avg > 0 else 1.0
+
+    # 3. Combined risk score (weighted sum of risk indicators); returned in the API
+    #    response for explanation only, no longer a model input
     risk_score = (
         terminal_features['TERMINAL_HIGH_RISK'] * 2 +  # Terminal has high fraud rate
         all_features['CUSTOMER_HIGH_DEVIATION'] * 3 +   # Amount is unusual for customer

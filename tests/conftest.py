@@ -83,13 +83,17 @@ def suspicious_transaction() -> Dict[str, Any]:
 
 @pytest.fixture
 def mock_customer_features() -> Dict[str, float]:
-    """Mock customer features from feature store."""
+    """Mock customer features, with every key FeatureStore.get_customer_features returns."""
     return {
-        'CUSTOMER_TX_COUNT_7D': 5.0,
-        'CUSTOMER_AVG_AMOUNT_7D': 75.5,
-        'CUSTOMER_STD_AMOUNT_7D': 25.0,
         'CUSTOMER_TX_COUNT_1D': 2.0,
-        'CUSTOMER_AVG_AMOUNT_1D': 50.0
+        'CUSTOMER_TX_COUNT_7D': 5.0,
+        'CUSTOMER_TX_COUNT_30D': 18.0,
+        'CUSTOMER_AVG_AMOUNT_1D': 50.0,
+        'CUSTOMER_AVG_AMOUNT_7D': 75.5,
+        'CUSTOMER_AVG_AMOUNT_30D': 70.0,
+        'CUSTOMER_STD_AMOUNT_1D': 10.0,
+        'CUSTOMER_STD_AMOUNT_7D': 25.0,
+        'CUSTOMER_STD_AMOUNT_30D': 22.0,
     }
 
 

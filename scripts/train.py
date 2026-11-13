@@ -64,14 +64,16 @@ def main():
         'Logistic Regression': LogisticRegression(max_iter=1000, class_weight='balanced', random_state=42),
         'Random Forest': RandomForestClassifier(n_estimators=100, max_depth=10, min_samples_split=100,
                                                 class_weight='balanced', random_state=42, n_jobs=-1),
-        'XGBoost': XGBClassifier(n_estimators=100, max_depth=6, learning_rate=0.1,
+        'XGBoost': XGBClassifier(n_estimators=1000, early_stopping_rounds=50, eval_metric='aucpr',
+                                 max_depth=6, learning_rate=0.1,
                                  scale_pos_weight=spw, random_state=42, n_jobs=-1),
         'LightGBM': LGBMClassifier(n_estimators=100, max_depth=6, learning_rate=0.1,
                                    scale_pos_weight=spw, random_state=42, n_jobs=-1, verbose=-1),
     }
     results = {}
     for name, model in models.items():
-        model.fit(X['train'], y['train'])
+        fit_args = {'eval_set': [(X['val'], y['val'])], 'verbose': False} if name == 'XGBoost' else {}
+        model.fit(X['train'], y['train'], **fit_args)
         threshold = budget_threshold(model.predict_proba(X['val'])[:, 1], ALERT_BUDGET)
         results[name] = evaluate(y['test'], model.predict_proba(X['test'])[:, 1], threshold,
                                  test['TX_FRAUD_SCENARIO'].to_numpy())
