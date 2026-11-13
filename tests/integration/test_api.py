@@ -2,14 +2,11 @@
 Integration tests for FastAPI fraud detection endpoints.
 """
 
-import pytest
-import sys
 import os
-from unittest.mock import Mock, patch, MagicMock
-import numpy as np
+from unittest.mock import Mock, patch
 
-# Add project root to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+import numpy as np
+import pytest
 
 
 class TestHealthEndpoints:
@@ -19,43 +16,47 @@ class TestHealthEndpoints:
     def client(self):
         """Create test client with mocked dependencies."""
         # Mock the model loading and feature store
-        with patch.dict(os.environ, {
-            'SUPABASE_URL': 'https://test.supabase.co',
-            'SUPABASE_KEY': 'test-key',
-            'MODEL_PATH': './artifacts/fraud_detection_model_final.pkl'
-        }):
-            with patch('src.app.joblib.load') as mock_load:
-                with patch('src.app.FeatureStore') as mock_fs:
+        with patch.dict(
+            os.environ,
+            {
+                "SUPABASE_URL": "https://test.supabase.co",
+                "SUPABASE_KEY": "test-key",
+                "MODEL_PATH": "./artifacts/fraud_detection_model_final.pkl",
+            },
+        ):
+            with patch("src.app.joblib.load") as mock_load:
+                with patch("src.app.FeatureStore") as mock_fs:
                     # Setup mock model
                     mock_model = Mock()
                     mock_model.predict_proba.return_value = np.array([[0.95, 0.05]])
 
                     mock_load.return_value = {
-                        'model': mock_model,
-                        'feature_columns': ['TX_AMOUNT', 'TX_HOUR_SIN'],
-                        'threshold': 0.5,
-                        'model_type': 'XGBoost_Test'
+                        "model": mock_model,
+                        "feature_columns": ["TX_AMOUNT", "TX_HOUR_SIN"],
+                        "threshold": 0.5,
+                        "model_type": "XGBoost_Test",
                     }
 
                     # Setup mock feature store
                     mock_store = Mock()
                     mock_store.get_customer_features.return_value = {
-                        'CUSTOMER_TX_COUNT_7D': 5.0,
-                        'CUSTOMER_AVG_AMOUNT_7D': 75.5,
-                        'CUSTOMER_STD_AMOUNT_7D': 25.0,
-                        'CUSTOMER_TX_COUNT_1D': 2.0,
-                        'CUSTOMER_AVG_AMOUNT_1D': 50.0
+                        "CUSTOMER_TX_COUNT_7D": 5.0,
+                        "CUSTOMER_AVG_AMOUNT_7D": 75.5,
+                        "CUSTOMER_STD_AMOUNT_7D": 25.0,
+                        "CUSTOMER_TX_COUNT_1D": 2.0,
+                        "CUSTOMER_AVG_AMOUNT_1D": 50.0,
                     }
                     mock_store.get_terminal_features.return_value = {
-                        'TERMINAL_TX_COUNT_7D': 100.0,
-                        'TERMINAL_FRAUD_RATE_7D': 0.02,
-                        'TERMINAL_HIGH_RISK': 0.0,
-                        'TERMINAL_AVG_AMOUNT_7D': 150.0
+                        "TERMINAL_TX_COUNT_7D": 100.0,
+                        "TERMINAL_FRAUD_RATE_7D": 0.02,
+                        "TERMINAL_HIGH_RISK": 0.0,
+                        "TERMINAL_AVG_AMOUNT_7D": 150.0,
                     }
                     mock_fs.return_value = mock_store
 
                     # Import app after mocks are set up
                     from fastapi.testclient import TestClient
+
                     from src.app import app
 
                     yield TestClient(app)
@@ -89,52 +90,67 @@ class TestPredictEndpoint:
     @pytest.fixture
     def client_and_mocks(self):
         """Create test client with accessible mocks."""
-        with patch.dict(os.environ, {
-            'SUPABASE_URL': 'https://test.supabase.co',
-            'SUPABASE_KEY': 'test-key',
-            'MODEL_PATH': './artifacts/fraud_detection_model_final.pkl'
-        }):
-            with patch('src.app.joblib.load') as mock_load:
-                with patch('src.app.FeatureStore') as mock_fs:
+        with patch.dict(
+            os.environ,
+            {
+                "SUPABASE_URL": "https://test.supabase.co",
+                "SUPABASE_KEY": "test-key",
+                "MODEL_PATH": "./artifacts/fraud_detection_model_final.pkl",
+            },
+        ):
+            with patch("src.app.joblib.load") as mock_load:
+                with patch("src.app.FeatureStore") as mock_fs:
                     # Setup mock model
                     mock_model = Mock()
                     mock_model.predict_proba.return_value = np.array([[0.95, 0.05]])
 
                     mock_load.return_value = {
-                        'model': mock_model,
-                        'feature_columns': [
-                            'TX_AMOUNT', 'TX_HOUR_SIN', 'TX_HOUR_COS',
-                            'TX_DAY_OF_WEEK', 'TX_IS_WEEKEND', 'TX_IS_NIGHT',
-                            'TX_AMOUNT_HIGH', 'TX_NIGHT_HIGH_AMOUNT',
-                            'CUSTOMER_TX_COUNT_7D', 'CUSTOMER_AVG_AMOUNT_7D',
-                            'CUSTOMER_STD_AMOUNT_7D', 'CUSTOMER_TX_COUNT_1D',
-                            'CUSTOMER_AVG_AMOUNT_1D', 'CUSTOMER_AMOUNT_DEVIATION',
-                            'CUSTOMER_HIGH_DEVIATION', 'TERMINAL_TX_COUNT_7D',
-                            'TERMINAL_FRAUD_RATE_7D', 'TERMINAL_HIGH_RISK',
-                            'TERMINAL_AVG_AMOUNT_7D', 'RISK_SCORE'
+                        "model": mock_model,
+                        "feature_columns": [
+                            "TX_AMOUNT",
+                            "TX_HOUR_SIN",
+                            "TX_HOUR_COS",
+                            "TX_DAY_OF_WEEK",
+                            "TX_IS_WEEKEND",
+                            "TX_IS_NIGHT",
+                            "TX_AMOUNT_HIGH",
+                            "TX_NIGHT_HIGH_AMOUNT",
+                            "CUSTOMER_TX_COUNT_7D",
+                            "CUSTOMER_AVG_AMOUNT_7D",
+                            "CUSTOMER_STD_AMOUNT_7D",
+                            "CUSTOMER_TX_COUNT_1D",
+                            "CUSTOMER_AVG_AMOUNT_1D",
+                            "CUSTOMER_AMOUNT_DEVIATION",
+                            "CUSTOMER_HIGH_DEVIATION",
+                            "TERMINAL_TX_COUNT_7D",
+                            "TERMINAL_FRAUD_RATE_7D",
+                            "TERMINAL_HIGH_RISK",
+                            "TERMINAL_AVG_AMOUNT_7D",
+                            "RISK_SCORE",
                         ],
-                        'threshold': 0.5,
-                        'model_type': 'XGBoost_Test'
+                        "threshold": 0.5,
+                        "model_type": "XGBoost_Test",
                     }
 
                     # Setup mock feature store
                     mock_store = Mock()
                     mock_store.get_customer_features.return_value = {
-                        'CUSTOMER_TX_COUNT_7D': 5.0,
-                        'CUSTOMER_AVG_AMOUNT_7D': 75.5,
-                        'CUSTOMER_STD_AMOUNT_7D': 25.0,
-                        'CUSTOMER_TX_COUNT_1D': 2.0,
-                        'CUSTOMER_AVG_AMOUNT_1D': 50.0
+                        "CUSTOMER_TX_COUNT_7D": 5.0,
+                        "CUSTOMER_AVG_AMOUNT_7D": 75.5,
+                        "CUSTOMER_STD_AMOUNT_7D": 25.0,
+                        "CUSTOMER_TX_COUNT_1D": 2.0,
+                        "CUSTOMER_AVG_AMOUNT_1D": 50.0,
                     }
                     mock_store.get_terminal_features.return_value = {
-                        'TERMINAL_TX_COUNT_7D': 100.0,
-                        'TERMINAL_FRAUD_RATE_7D': 0.02,
-                        'TERMINAL_HIGH_RISK': 0.0,
-                        'TERMINAL_AVG_AMOUNT_7D': 150.0
+                        "TERMINAL_TX_COUNT_7D": 100.0,
+                        "TERMINAL_FRAUD_RATE_7D": 0.02,
+                        "TERMINAL_HIGH_RISK": 0.0,
+                        "TERMINAL_AVG_AMOUNT_7D": 150.0,
                     }
                     mock_fs.return_value = mock_store
 
                     from fastapi.testclient import TestClient
+
                     from src.app import app
 
                     yield TestClient(app), mock_model, mock_store
@@ -148,7 +164,7 @@ class TestPredictEndpoint:
             "customer_id": 100,
             "terminal_id": 500,
             "amount": 125.50,
-            "timestamp": "2024-01-15T14:30:00"
+            "timestamp": "2024-01-15T14:30:00",
         }
 
         response = client.post("/predict", json=transaction)
@@ -169,7 +185,7 @@ class TestPredictEndpoint:
             "customer_id": 100,
             "terminal_id": 500,
             "amount": 125.50,
-            "timestamp": "2024-01-15T14:30:00"
+            "timestamp": "2024-01-15T14:30:00",
         }
 
         response = client.post("/predict", json=transaction)
@@ -182,11 +198,7 @@ class TestPredictEndpoint:
         """Should return 422 for missing customer_id."""
         client, _, _ = client_and_mocks
 
-        transaction = {
-            "terminal_id": 500,
-            "amount": 125.50,
-            "timestamp": "2024-01-15T14:30:00"
-        }
+        transaction = {"terminal_id": 500, "amount": 125.50, "timestamp": "2024-01-15T14:30:00"}
 
         response = client.post("/predict", json=transaction)
 
@@ -196,11 +208,7 @@ class TestPredictEndpoint:
         """Should return 422 for missing terminal_id."""
         client, _, _ = client_and_mocks
 
-        transaction = {
-            "customer_id": 100,
-            "amount": 125.50,
-            "timestamp": "2024-01-15T14:30:00"
-        }
+        transaction = {"customer_id": 100, "amount": 125.50, "timestamp": "2024-01-15T14:30:00"}
 
         response = client.post("/predict", json=transaction)
 
@@ -210,11 +218,7 @@ class TestPredictEndpoint:
         """Should return 422 for missing amount."""
         client, _, _ = client_and_mocks
 
-        transaction = {
-            "customer_id": 100,
-            "terminal_id": 500,
-            "timestamp": "2024-01-15T14:30:00"
-        }
+        transaction = {"customer_id": 100, "terminal_id": 500, "timestamp": "2024-01-15T14:30:00"}
 
         response = client.post("/predict", json=transaction)
 
@@ -224,11 +228,7 @@ class TestPredictEndpoint:
         """Should return 422 for missing timestamp."""
         client, _, _ = client_and_mocks
 
-        transaction = {
-            "customer_id": 100,
-            "terminal_id": 500,
-            "amount": 125.50
-        }
+        transaction = {"customer_id": 100, "terminal_id": 500, "amount": 125.50}
 
         response = client.post("/predict", json=transaction)
 
@@ -242,7 +242,7 @@ class TestPredictEndpoint:
             "customer_id": 100,
             "terminal_id": 500,
             "amount": -50.0,
-            "timestamp": "2024-01-15T14:30:00"
+            "timestamp": "2024-01-15T14:30:00",
         }
 
         response = client.post("/predict", json=transaction)
@@ -258,7 +258,7 @@ class TestPredictEndpoint:
             "customer_id": 100,
             "terminal_id": 500,
             "amount": 125.50,
-            "timestamp": "2024-01-15T14:30:00"
+            "timestamp": "2024-01-15T14:30:00",
         }
 
         response = client.post("/predict", json=transaction)
@@ -276,7 +276,7 @@ class TestPredictEndpoint:
             "customer_id": 100,
             "terminal_id": 500,
             "amount": 125.50,
-            "timestamp": "2024-01-15T14:30:00"
+            "timestamp": "2024-01-15T14:30:00",
         }
 
         response = client.post("/predict", json=transaction)
@@ -295,7 +295,7 @@ class TestPredictEndpoint:
             "customer_id": 100,
             "terminal_id": 500,
             "amount": 5000.0,
-            "timestamp": "2024-01-15T02:30:00"
+            "timestamp": "2024-01-15T02:30:00",
         }
 
         response = client.post("/predict", json=transaction)
@@ -312,50 +312,65 @@ class TestBatchPredictEndpoint:
     @pytest.fixture
     def client(self):
         """Create test client with mocked dependencies."""
-        with patch.dict(os.environ, {
-            'SUPABASE_URL': 'https://test.supabase.co',
-            'SUPABASE_KEY': 'test-key',
-            'MODEL_PATH': './artifacts/fraud_detection_model_final.pkl'
-        }):
-            with patch('src.app.joblib.load') as mock_load:
-                with patch('src.app.FeatureStore') as mock_fs:
+        with patch.dict(
+            os.environ,
+            {
+                "SUPABASE_URL": "https://test.supabase.co",
+                "SUPABASE_KEY": "test-key",
+                "MODEL_PATH": "./artifacts/fraud_detection_model_final.pkl",
+            },
+        ):
+            with patch("src.app.joblib.load") as mock_load:
+                with patch("src.app.FeatureStore") as mock_fs:
                     mock_model = Mock()
                     mock_model.predict_proba.return_value = np.array([[0.95, 0.05]])
 
                     mock_load.return_value = {
-                        'model': mock_model,
-                        'feature_columns': [
-                            'TX_AMOUNT', 'TX_HOUR_SIN', 'TX_HOUR_COS',
-                            'TX_DAY_OF_WEEK', 'TX_IS_WEEKEND', 'TX_IS_NIGHT',
-                            'TX_AMOUNT_HIGH', 'TX_NIGHT_HIGH_AMOUNT',
-                            'CUSTOMER_TX_COUNT_7D', 'CUSTOMER_AVG_AMOUNT_7D',
-                            'CUSTOMER_STD_AMOUNT_7D', 'CUSTOMER_TX_COUNT_1D',
-                            'CUSTOMER_AVG_AMOUNT_1D', 'CUSTOMER_AMOUNT_DEVIATION',
-                            'CUSTOMER_HIGH_DEVIATION', 'TERMINAL_TX_COUNT_7D',
-                            'TERMINAL_FRAUD_RATE_7D', 'TERMINAL_HIGH_RISK',
-                            'TERMINAL_AVG_AMOUNT_7D', 'RISK_SCORE'
+                        "model": mock_model,
+                        "feature_columns": [
+                            "TX_AMOUNT",
+                            "TX_HOUR_SIN",
+                            "TX_HOUR_COS",
+                            "TX_DAY_OF_WEEK",
+                            "TX_IS_WEEKEND",
+                            "TX_IS_NIGHT",
+                            "TX_AMOUNT_HIGH",
+                            "TX_NIGHT_HIGH_AMOUNT",
+                            "CUSTOMER_TX_COUNT_7D",
+                            "CUSTOMER_AVG_AMOUNT_7D",
+                            "CUSTOMER_STD_AMOUNT_7D",
+                            "CUSTOMER_TX_COUNT_1D",
+                            "CUSTOMER_AVG_AMOUNT_1D",
+                            "CUSTOMER_AMOUNT_DEVIATION",
+                            "CUSTOMER_HIGH_DEVIATION",
+                            "TERMINAL_TX_COUNT_7D",
+                            "TERMINAL_FRAUD_RATE_7D",
+                            "TERMINAL_HIGH_RISK",
+                            "TERMINAL_AVG_AMOUNT_7D",
+                            "RISK_SCORE",
                         ],
-                        'threshold': 0.5,
-                        'model_type': 'XGBoost_Test'
+                        "threshold": 0.5,
+                        "model_type": "XGBoost_Test",
                     }
 
                     mock_store = Mock()
                     mock_store.get_customer_features.return_value = {
-                        'CUSTOMER_TX_COUNT_7D': 5.0,
-                        'CUSTOMER_AVG_AMOUNT_7D': 75.5,
-                        'CUSTOMER_STD_AMOUNT_7D': 25.0,
-                        'CUSTOMER_TX_COUNT_1D': 2.0,
-                        'CUSTOMER_AVG_AMOUNT_1D': 50.0
+                        "CUSTOMER_TX_COUNT_7D": 5.0,
+                        "CUSTOMER_AVG_AMOUNT_7D": 75.5,
+                        "CUSTOMER_STD_AMOUNT_7D": 25.0,
+                        "CUSTOMER_TX_COUNT_1D": 2.0,
+                        "CUSTOMER_AVG_AMOUNT_1D": 50.0,
                     }
                     mock_store.get_terminal_features.return_value = {
-                        'TERMINAL_TX_COUNT_7D': 100.0,
-                        'TERMINAL_FRAUD_RATE_7D': 0.02,
-                        'TERMINAL_HIGH_RISK': 0.0,
-                        'TERMINAL_AVG_AMOUNT_7D': 150.0
+                        "TERMINAL_TX_COUNT_7D": 100.0,
+                        "TERMINAL_FRAUD_RATE_7D": 0.02,
+                        "TERMINAL_HIGH_RISK": 0.0,
+                        "TERMINAL_AVG_AMOUNT_7D": 150.0,
                     }
                     mock_fs.return_value = mock_store
 
                     from fastapi.testclient import TestClient
+
                     from src.app import app
 
                     yield TestClient(app)
@@ -368,7 +383,7 @@ class TestBatchPredictEndpoint:
                 "customer_id": 100 + i,
                 "terminal_id": 500,
                 "amount": 50.0 + i * 25,
-                "timestamp": "2024-01-15T14:30:00"
+                "timestamp": "2024-01-15T14:30:00",
             }
             for i in range(5)
         ]
@@ -391,13 +406,15 @@ class TestBatchPredictEndpoint:
 
     def test_batch_predict_single_transaction(self, client):
         """Test batch prediction with single transaction."""
-        transactions = [{
-            "transaction_id": "single_batch",
-            "customer_id": 100,
-            "terminal_id": 500,
-            "amount": 125.50,
-            "timestamp": "2024-01-15T14:30:00"
-        }]
+        transactions = [
+            {
+                "transaction_id": "single_batch",
+                "customer_id": 100,
+                "terminal_id": 500,
+                "amount": 125.50,
+                "timestamp": "2024-01-15T14:30:00",
+            }
+        ]
 
         response = client.post("/batch-predict", json=transactions)
 
@@ -407,12 +424,14 @@ class TestBatchPredictEndpoint:
 
     def test_batch_predict_includes_error_count(self, client):
         """Response should include error count."""
-        transactions = [{
-            "customer_id": 100,
-            "terminal_id": 500,
-            "amount": 125.50,
-            "timestamp": "2024-01-15T14:30:00"
-        }]
+        transactions = [
+            {
+                "customer_id": 100,
+                "terminal_id": 500,
+                "amount": 125.50,
+                "timestamp": "2024-01-15T14:30:00",
+            }
+        ]
 
         response = client.post("/batch-predict", json=transactions)
 
@@ -427,40 +446,44 @@ class TestStatsEndpoint:
     @pytest.fixture
     def client(self):
         """Create test client with mocked dependencies."""
-        with patch.dict(os.environ, {
-            'SUPABASE_URL': 'https://test.supabase.co',
-            'SUPABASE_KEY': 'test-key',
-            'MODEL_PATH': './artifacts/fraud_detection_model_final.pkl'
-        }):
-            with patch('src.app.joblib.load') as mock_load:
-                with patch('src.app.FeatureStore') as mock_fs:
+        with patch.dict(
+            os.environ,
+            {
+                "SUPABASE_URL": "https://test.supabase.co",
+                "SUPABASE_KEY": "test-key",
+                "MODEL_PATH": "./artifacts/fraud_detection_model_final.pkl",
+            },
+        ):
+            with patch("src.app.joblib.load") as mock_load:
+                with patch("src.app.FeatureStore") as mock_fs:
                     mock_model = Mock()
                     mock_model.predict_proba.return_value = np.array([[0.95, 0.05]])
 
                     mock_load.return_value = {
-                        'model': mock_model,
-                        'feature_columns': ['TX_AMOUNT'],
-                        'threshold': 0.5,
-                        'model_type': 'XGBoost_Test'
+                        "model": mock_model,
+                        "feature_columns": ["TX_AMOUNT"],
+                        "threshold": 0.5,
+                        "model_type": "XGBoost_Test",
                     }
 
                     mock_store = Mock()
 
                     # Mock stats queries
                     mock_customer_response = Mock()
-                    mock_customer_response.data = [{'customer_id': i} for i in range(100)]
+                    mock_customer_response.data = [{"customer_id": i} for i in range(100)]
 
                     mock_terminal_response = Mock()
-                    mock_terminal_response.data = [{'terminal_id': i} for i in range(50)]
+                    mock_terminal_response.data = [{"terminal_id": i} for i in range(50)]
 
                     mock_store.client.table.return_value.select.return_value.execute.side_effect = [
                         mock_customer_response,
-                        mock_terminal_response
+                        mock_terminal_response,
                     ]
 
                     mock_fs.return_value = mock_store
 
                     from fastapi.testclient import TestClient
+
                     from src.app import app
 
                     yield TestClient(app)
@@ -481,26 +504,30 @@ class TestAPIMiddleware:
     @pytest.fixture
     def client(self):
         """Create test client."""
-        with patch.dict(os.environ, {
-            'SUPABASE_URL': 'https://test.supabase.co',
-            'SUPABASE_KEY': 'test-key',
-            'MODEL_PATH': './artifacts/fraud_detection_model_final.pkl'
-        }):
-            with patch('src.app.joblib.load') as mock_load:
-                with patch('src.app.FeatureStore') as mock_fs:
+        with patch.dict(
+            os.environ,
+            {
+                "SUPABASE_URL": "https://test.supabase.co",
+                "SUPABASE_KEY": "test-key",
+                "MODEL_PATH": "./artifacts/fraud_detection_model_final.pkl",
+            },
+        ):
+            with patch("src.app.joblib.load") as mock_load:
+                with patch("src.app.FeatureStore") as mock_fs:
                     mock_model = Mock()
                     mock_model.predict_proba.return_value = np.array([[0.95, 0.05]])
 
                     mock_load.return_value = {
-                        'model': mock_model,
-                        'feature_columns': ['TX_AMOUNT'],
-                        'threshold': 0.5,
-                        'model_type': 'XGBoost_Test'
+                        "model": mock_model,
+                        "feature_columns": ["TX_AMOUNT"],
+                        "threshold": 0.5,
+                        "model_type": "XGBoost_Test",
                     }
 
                     mock_fs.return_value = Mock()
 
                     from fastapi.testclient import TestClient
+
                     from src.app import app
 
                     yield TestClient(app)

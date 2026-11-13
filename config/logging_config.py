@@ -1,10 +1,10 @@
 import logging
 import sys
-from typing import Optional
-from pythonjsonlogger import jsonlogger
 from contextvars import ContextVar
 
-request_id_var: ContextVar[str] = ContextVar('request_id', default='N/A')
+from pythonjsonlogger import jsonlogger
+
+request_id_var: ContextVar[str] = ContextVar("request_id", default="N/A")
 
 
 class RequestIdFilter(logging.Filter):
@@ -19,12 +19,12 @@ class ColoredFormatter(logging.Formatter):
     """Colored formatter for development logs"""
 
     COLORS = {
-        'DEBUG': '\033[36m',    # Cyan
-        'INFO': '\033[32m',     # Green
-        'WARNING': '\033[33m',  # Yellow
-        'ERROR': '\033[31m',    # Red
-        'CRITICAL': '\033[35m', # Magenta
-        'RESET': '\033[0m'      # Reset
+        "DEBUG": "\033[36m",  # Cyan
+        "INFO": "\033[32m",  # Green
+        "WARNING": "\033[33m",  # Yellow
+        "ERROR": "\033[31m",  # Red
+        "CRITICAL": "\033[35m",  # Magenta
+        "RESET": "\033[0m",  # Reset
     }
 
     def format(self, record):
@@ -35,21 +35,19 @@ class ColoredFormatter(logging.Formatter):
 
 
 def setup_logging(
-    log_level: str = "INFO",
-    log_format: str = "json",
-    enable_colors: bool = True
+    log_level: str = "INFO", log_format: str = "json", enable_colors: bool = True
 ) -> logging.Logger:
     """Configure structured logging for the application."""
 
     if log_format == "json":
-        log_fmt = '%(asctime)s %(levelname)s %(name)s %(request_id)s %(message)s'
+        log_fmt = "%(asctime)s %(levelname)s %(name)s %(request_id)s %(message)s"
         formatter = jsonlogger.JsonFormatter(log_fmt)
     else:
-        log_fmt = '%(asctime)s [%(levelname)s] [%(request_id)s] %(name)s - %(message)s'
+        log_fmt = "%(asctime)s [%(levelname)s] [%(request_id)s] %(name)s - %(message)s"
         if enable_colors and sys.stdout.isatty():
-            formatter = ColoredFormatter(log_fmt, datefmt='%Y-%m-%d %H:%M:%S')
+            formatter = ColoredFormatter(log_fmt, datefmt="%Y-%m-%d %H:%M:%S")
         else:
-            formatter = logging.Formatter(log_fmt, datefmt='%Y-%m-%d %H:%M:%S')
+            formatter = logging.Formatter(log_fmt, datefmt="%Y-%m-%d %H:%M:%S")
 
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(formatter)

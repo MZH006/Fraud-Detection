@@ -1,10 +1,10 @@
 """Build features for a single transaction and score it."""
 
 import math
+from datetime import datetime
+from typing import Any, Dict, Optional
+
 import numpy as np
-import pandas as pd
-from typing import Dict, Any, Optional
-from datetime import datetime, timedelta
 from numpy.typing import NDArray
 
 from config.logging_config import get_logger
@@ -12,13 +12,7 @@ from src.feature_store.store import FeatureStore
 
 logger = get_logger(__name__)
 
-REQUIRED_FIELDS = {
-    "customer_id",
-    "terminal_id", 
-    "amount",
-    "timestamp"
-}
-
+REQUIRED_FIELDS = {"customer_id", "terminal_id", "amount", "timestamp"}
 
 
 def validate_schema(tx: Dict[str, Any]) -> None:
@@ -38,8 +32,6 @@ def validate_schema(tx: Dict[str, Any]) -> None:
     if not isinstance(tx["terminal_id"], (int, str)):
         raise ValueError("Terminal ID must be int or string")
 
-            
-
 
 def extract_realtime_features(tx: Dict[str, Any]) -> Dict[str, float]:
     """Extract features available in real-time from a transaction."""
@@ -48,7 +40,7 @@ def extract_realtime_features(tx: Dict[str, Any]) -> Dict[str, float]:
 
     # Accept timestamps with or without a timezone suffix.
     try:
-        dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+        dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
     except ValueError as e:
         raise ValueError(f"Invalid timestamp format: {timestamp}") from e
 
@@ -57,23 +49,21 @@ def extract_realtime_features(tx: Dict[str, Any]) -> Dict[str, float]:
 
     # Sine/cosine keep 23:00 next to 01:00.
     features = {
-        'TX_HOUR_SIN': math.sin(2 * math.pi * hour / 24),
-        'TX_HOUR_COS': math.cos(2 * math.pi * hour / 24),
-        'TX_DAY_OF_WEEK': float(day_of_week),
-        'TX_IS_WEEKEND': 1.0 if day_of_week >= 5 else 0.0,
-        'TX_IS_NIGHT': 1.0 if (hour >= 22 or hour <= 6) else 0.0,
-
-        'TX_AMOUNT': amount,
-        'TX_AMOUNT_HIGH': 1.0 if amount > 200 else 0.0,
-        'TX_NIGHT_HIGH_AMOUNT': 1.0 if ((hour >= 22 or hour <= 6) and amount > 200) else 0.0,
+        "TX_HOUR_SIN": math.sin(2 * math.pi * hour / 24),
+        "TX_HOUR_COS": math.cos(2 * math.pi * hour / 24),
+        "TX_DAY_OF_WEEK": float(day_of_week),
+        "TX_IS_WEEKEND": 1.0 if day_of_week >= 5 else 0.0,
+        "TX_IS_NIGHT": 1.0 if (hour >= 22 or hour <= 6) else 0.0,
+        "TX_AMOUNT": amount,
+        "TX_AMOUNT_HIGH": 1.0 if amount > 200 else 0.0,
+        "TX_NIGHT_HIGH_AMOUNT": 1.0 if ((hour >= 22 or hour <= 6) and amount > 200) else 0.0,
     }
 
     return features
 
+
 def enrich_with_feature_store(
-    tx: Dict[str, Any],
-    realtime_features: Dict[str, float],
-    feature_store: FeatureStore
+    tx: Dict[str, Any], realtime_features: Dict[str, float], feature_store: FeatureStore
 ) -> Dict[str, float]:
     """Enrich real-time features with customer and terminal historical features."""
     customer_id = int(tx["customer_id"])
@@ -86,9 +76,8 @@ def enrich_with_feature_store(
 
     all_features = {**realtime_features, **customer_features, **terminal_features}
 
-
-    avg_amount_7d = customer_features['CUSTOMER_AVG_AMOUNT_7D']
-    std_amount_7d = customer_features['CUSTOMER_STD_AMOUNT_7D']
+    avg_amount_7d = customer_features["CUSTOMER_AVG_AMOUNT_7D"]
+    std_amount_7d = customer_features["CUSTOMER_STD_AMOUNT_7D"]
 
     if std_amount_7d > 0:
         amount_deviation = (amount - avg_amount_7d) / std_amount_7d
@@ -96,35 +85,35 @@ def enrich_with_feature_store(
         amount_deviation = 0.0
 
     # Clip to prevent extreme outliers from dominating
-    all_features['CUSTOMER_AMOUNT_DEVIATION'] = float(np.clip(amount_deviation, -10, 10))
-    all_features['CUSTOMER_HIGH_DEVIATION'] = 1.0 if abs(amount_deviation) > 2 else 0.0
+    all_features["CUSTOMER_AMOUNT_DEVIATION"] = float(np.clip(amount_deviation, -10, 10))
+    all_features["CUSTOMER_HIGH_DEVIATION"] = 1.0 if abs(amount_deviation) > 2 else 0.0
 
     # Same rule as src/features.py, so training and serving agree.
     for window in (1, 7, 30):
-        avg = customer_features[f'CUSTOMER_AVG_AMOUNT_{window}D']
-        all_features[f'AMOUNT_TO_CUSTOMER_AVG_{window}D'] = amount / avg if avg > 0 else 1.0
+        avg = customer_features[f"CUSTOMER_AVG_AMOUNT_{window}D"]
+        all_features[f"AMOUNT_TO_CUSTOMER_AVG_{window}D"] = amount / avg if avg > 0 else 1.0
 
     # Returned to the caller as an explanation; not a model input.
     risk_score = (
-        terminal_features['TERMINAL_HIGH_RISK'] * 2 +  # Terminal has high fraud rate
-        all_features['CUSTOMER_HIGH_DEVIATION'] * 3 +   # Amount is unusual for customer
-        all_features['TX_NIGHT_HIGH_AMOUNT']            # High amount at night
+        terminal_features["TERMINAL_HIGH_RISK"] * 2  # Terminal has high fraud rate
+        + all_features["CUSTOMER_HIGH_DEVIATION"] * 3  # Amount is unusual for customer
+        + all_features["TX_NIGHT_HIGH_AMOUNT"]  # High amount at night
     )
-    all_features['RISK_SCORE'] = float(risk_score)
+    all_features["RISK_SCORE"] = float(risk_score)
 
     return all_features
 
 
-
-
-def assemble_feature_vector(features: Dict[str, float], feature_order: list[str]) -> NDArray[np.float32]:
+def assemble_feature_vector(
+    features: Dict[str, float], feature_order: list[str]
+) -> NDArray[np.float32]:
     """Assemble feature vector in the correct order expected by the model."""
     vector = np.array(
-        [features.get(name, 0.0) for name in feature_order],
-        dtype=np.float32
+        [features.get(name, 0.0) for name in feature_order], dtype=np.float32
     ).reshape(1, -1)
 
     return vector
+
 
 def score_transaction(
     tx: Dict[str, Any],
@@ -132,7 +121,7 @@ def score_transaction(
     feature_order: list[str],
     threshold: float,
     model_version: str,
-    feature_store: Optional[FeatureStore] = None
+    feature_store: Optional[FeatureStore] = None,
 ) -> Dict[str, Any]:
     """Score a transaction for fraud probability using ML model and feature store."""
     validate_schema(tx)
@@ -170,10 +159,9 @@ def score_transaction(
         "model_version": model_version,
         "timestamp": tx["timestamp"],
         "features_used": {
-            "customer_avg_amount_7d": all_features.get('CUSTOMER_AVG_AMOUNT_7D'),
-            "terminal_fraud_rate_7d": all_features.get('TERMINAL_FRAUD_RATE_7D'),
-            "amount_deviation": all_features.get('CUSTOMER_AMOUNT_DEVIATION'),
-            "risk_score": all_features.get('RISK_SCORE')
-        }
+            "customer_avg_amount_7d": all_features.get("CUSTOMER_AVG_AMOUNT_7D"),
+            "terminal_fraud_rate_7d": all_features.get("TERMINAL_FRAUD_RATE_7D"),
+            "amount_deviation": all_features.get("CUSTOMER_AMOUNT_DEVIATION"),
+            "risk_score": all_features.get("RISK_SCORE"),
+        },
     }
-    

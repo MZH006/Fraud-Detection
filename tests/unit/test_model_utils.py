@@ -2,23 +2,18 @@
 Unit tests for model_utils.py - Feature extraction and scoring functions.
 """
 
-import pytest
 import math
-import numpy as np
-from unittest.mock import Mock, patch
-import sys
-import os
+from unittest.mock import Mock
 
-# Add project root to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+import numpy as np
+import pytest
 
 from src.model_utils import (
-    validate_schema,
-    extract_realtime_features,
-    enrich_with_feature_store,
     assemble_feature_vector,
+    enrich_with_feature_store,
+    extract_realtime_features,
     score_transaction,
-    REQUIRED_FIELDS
+    validate_schema,
 )
 
 
@@ -36,47 +31,31 @@ class TestValidateSchema:
             "customer_id": 100,
             "terminal_id": 500,
             "amount": 100.0,
-            "timestamp": "2024-01-15T14:30:00"
+            "timestamp": "2024-01-15T14:30:00",
         }
         validate_schema(tx)  # Should not raise
 
     def test_missing_customer_id_raises(self):
         """Missing customer_id should raise ValueError."""
-        tx = {
-            "terminal_id": 500,
-            "amount": 100.0,
-            "timestamp": "2024-01-15T14:30:00"
-        }
+        tx = {"terminal_id": 500, "amount": 100.0, "timestamp": "2024-01-15T14:30:00"}
         with pytest.raises(ValueError, match="Missing required fields"):
             validate_schema(tx)
 
     def test_missing_terminal_id_raises(self):
         """Missing terminal_id should raise ValueError."""
-        tx = {
-            "customer_id": 100,
-            "amount": 100.0,
-            "timestamp": "2024-01-15T14:30:00"
-        }
+        tx = {"customer_id": 100, "amount": 100.0, "timestamp": "2024-01-15T14:30:00"}
         with pytest.raises(ValueError, match="Missing required fields"):
             validate_schema(tx)
 
     def test_missing_amount_raises(self):
         """Missing amount should raise ValueError."""
-        tx = {
-            "customer_id": 100,
-            "terminal_id": 500,
-            "timestamp": "2024-01-15T14:30:00"
-        }
+        tx = {"customer_id": 100, "terminal_id": 500, "timestamp": "2024-01-15T14:30:00"}
         with pytest.raises(ValueError, match="Missing required fields"):
             validate_schema(tx)
 
     def test_missing_timestamp_raises(self):
         """Missing timestamp should raise ValueError."""
-        tx = {
-            "customer_id": 100,
-            "terminal_id": 500,
-            "amount": 100.0
-        }
+        tx = {"customer_id": 100, "terminal_id": 500, "amount": 100.0}
         with pytest.raises(ValueError, match="Missing required fields"):
             validate_schema(tx)
 
@@ -86,7 +65,7 @@ class TestValidateSchema:
             "customer_id": 100,
             "terminal_id": 500,
             "amount": -50.0,
-            "timestamp": "2024-01-15T14:30:00"
+            "timestamp": "2024-01-15T14:30:00",
         }
         with pytest.raises(ValueError, match="Amount must be non-negative"):
             validate_schema(tx)
@@ -97,7 +76,7 @@ class TestValidateSchema:
             "customer_id": 100,
             "terminal_id": 500,
             "amount": 0.0,
-            "timestamp": "2024-01-15T14:30:00"
+            "timestamp": "2024-01-15T14:30:00",
         }
         validate_schema(tx)  # Should not raise
 
@@ -107,7 +86,7 @@ class TestValidateSchema:
             "customer_id": 100,
             "terminal_id": 500,
             "amount": "one hundred",
-            "timestamp": "2024-01-15T14:30:00"
+            "timestamp": "2024-01-15T14:30:00",
         }
         with pytest.raises(ValueError, match="Amount must be numeric"):
             validate_schema(tx)
@@ -118,7 +97,7 @@ class TestValidateSchema:
             "customer_id": 100,
             "terminal_id": 500,
             "amount": 100,  # int, not float
-            "timestamp": "2024-01-15T14:30:00"
+            "timestamp": "2024-01-15T14:30:00",
         }
         validate_schema(tx)  # Should not raise
 
@@ -128,7 +107,7 @@ class TestValidateSchema:
             "customer_id": "cust_100",
             "terminal_id": 500,
             "amount": 100.0,
-            "timestamp": "2024-01-15T14:30:00"
+            "timestamp": "2024-01-15T14:30:00",
         }
         validate_schema(tx)  # Should not raise
 
@@ -164,145 +143,97 @@ class TestExtractRealtimeFeatures:
 
     def test_weekend_detection_saturday(self):
         """Saturday should be detected as weekend."""
-        tx = {
-            "amount": 100.0,
-            "timestamp": "2024-01-13T14:30:00"  # Saturday
-        }
+        tx = {"amount": 100.0, "timestamp": "2024-01-13T14:30:00"}  # Saturday
         features = extract_realtime_features(tx)
         assert features["TX_IS_WEEKEND"] == 1.0
 
     def test_weekend_detection_sunday(self):
         """Sunday should be detected as weekend."""
-        tx = {
-            "amount": 100.0,
-            "timestamp": "2024-01-14T14:30:00"  # Sunday
-        }
+        tx = {"amount": 100.0, "timestamp": "2024-01-14T14:30:00"}  # Sunday
         features = extract_realtime_features(tx)
         assert features["TX_IS_WEEKEND"] == 1.0
 
     def test_weekday_detection(self):
         """Monday should not be detected as weekend."""
-        tx = {
-            "amount": 100.0,
-            "timestamp": "2024-01-15T14:30:00"  # Monday
-        }
+        tx = {"amount": 100.0, "timestamp": "2024-01-15T14:30:00"}  # Monday
         features = extract_realtime_features(tx)
         assert features["TX_IS_WEEKEND"] == 0.0
 
     def test_night_detection_2am(self):
         """2 AM should be detected as night."""
-        tx = {
-            "amount": 100.0,
-            "timestamp": "2024-01-15T02:30:00"
-        }
+        tx = {"amount": 100.0, "timestamp": "2024-01-15T02:30:00"}
         features = extract_realtime_features(tx)
         assert features["TX_IS_NIGHT"] == 1.0
 
     def test_night_detection_11pm(self):
         """11 PM should be detected as night."""
-        tx = {
-            "amount": 100.0,
-            "timestamp": "2024-01-15T23:30:00"
-        }
+        tx = {"amount": 100.0, "timestamp": "2024-01-15T23:30:00"}
         features = extract_realtime_features(tx)
         assert features["TX_IS_NIGHT"] == 1.0
 
     def test_day_detection_2pm(self):
         """2 PM should not be detected as night."""
-        tx = {
-            "amount": 100.0,
-            "timestamp": "2024-01-15T14:30:00"
-        }
+        tx = {"amount": 100.0, "timestamp": "2024-01-15T14:30:00"}
         features = extract_realtime_features(tx)
         assert features["TX_IS_NIGHT"] == 0.0
 
     def test_high_amount_detection(self):
         """Amount > $200 should be flagged as high."""
-        tx = {
-            "amount": 250.0,
-            "timestamp": "2024-01-15T14:30:00"
-        }
+        tx = {"amount": 250.0, "timestamp": "2024-01-15T14:30:00"}
         features = extract_realtime_features(tx)
         assert features["TX_AMOUNT_HIGH"] == 1.0
 
     def test_low_amount_not_flagged(self):
         """Amount <= $200 should not be flagged as high."""
-        tx = {
-            "amount": 150.0,
-            "timestamp": "2024-01-15T14:30:00"
-        }
+        tx = {"amount": 150.0, "timestamp": "2024-01-15T14:30:00"}
         features = extract_realtime_features(tx)
         assert features["TX_AMOUNT_HIGH"] == 0.0
 
     def test_boundary_amount_200(self):
         """Amount exactly $200 should not be flagged (> 200 required)."""
-        tx = {
-            "amount": 200.0,
-            "timestamp": "2024-01-15T14:30:00"
-        }
+        tx = {"amount": 200.0, "timestamp": "2024-01-15T14:30:00"}
         features = extract_realtime_features(tx)
         assert features["TX_AMOUNT_HIGH"] == 0.0
 
     def test_night_high_amount_interaction(self):
         """Night + high amount should set interaction feature."""
-        tx = {
-            "amount": 300.0,
-            "timestamp": "2024-01-15T02:30:00"  # Night + high amount
-        }
+        tx = {"amount": 300.0, "timestamp": "2024-01-15T02:30:00"}  # Night + high amount
         features = extract_realtime_features(tx)
         assert features["TX_NIGHT_HIGH_AMOUNT"] == 1.0
 
     def test_night_low_amount_no_interaction(self):
         """Night + low amount should not set interaction feature."""
-        tx = {
-            "amount": 50.0,
-            "timestamp": "2024-01-15T02:30:00"  # Night + low amount
-        }
+        tx = {"amount": 50.0, "timestamp": "2024-01-15T02:30:00"}  # Night + low amount
         features = extract_realtime_features(tx)
         assert features["TX_NIGHT_HIGH_AMOUNT"] == 0.0
 
     def test_day_high_amount_no_interaction(self):
         """Day + high amount should not set interaction feature."""
-        tx = {
-            "amount": 300.0,
-            "timestamp": "2024-01-15T14:30:00"  # Day + high amount
-        }
+        tx = {"amount": 300.0, "timestamp": "2024-01-15T14:30:00"}  # Day + high amount
         features = extract_realtime_features(tx)
         assert features["TX_NIGHT_HIGH_AMOUNT"] == 0.0
 
     def test_invalid_timestamp_raises(self):
         """Invalid timestamp should raise ValueError."""
-        tx = {
-            "amount": 100.0,
-            "timestamp": "not-a-timestamp"
-        }
+        tx = {"amount": 100.0, "timestamp": "not-a-timestamp"}
         with pytest.raises(ValueError, match="Invalid timestamp format"):
             extract_realtime_features(tx)
 
     def test_timezone_z_suffix(self):
         """Timestamp with Z suffix should be parsed correctly."""
-        tx = {
-            "amount": 100.0,
-            "timestamp": "2024-01-15T14:30:00Z"
-        }
+        tx = {"amount": 100.0, "timestamp": "2024-01-15T14:30:00Z"}
         features = extract_realtime_features(tx)
         assert features["TX_AMOUNT"] == 100.0
 
     def test_day_of_week_monday(self):
         """Monday should have day_of_week = 0."""
-        tx = {
-            "amount": 100.0,
-            "timestamp": "2024-01-15T14:30:00"  # Monday
-        }
+        tx = {"amount": 100.0, "timestamp": "2024-01-15T14:30:00"}  # Monday
         features = extract_realtime_features(tx)
         assert features["TX_DAY_OF_WEEK"] == 0.0
 
     def test_day_of_week_sunday(self):
         """Sunday should have day_of_week = 6."""
-        tx = {
-            "amount": 100.0,
-            "timestamp": "2024-01-14T14:30:00"  # Sunday
-        }
+        tx = {"amount": 100.0, "timestamp": "2024-01-14T14:30:00"}  # Sunday
         features = extract_realtime_features(tx)
         assert features["TX_DAY_OF_WEEK"] == 6.0
 
@@ -357,7 +288,7 @@ class TestEnrichWithFeatureStore:
             "customer_id": 100,
             "terminal_id": 500,
             "amount": 200.0,  # Much higher than avg (75.5)
-            "timestamp": "2024-01-15T14:30:00"
+            "timestamp": "2024-01-15T14:30:00",
         }
         realtime = extract_realtime_features(tx)
         all_features = enrich_with_feature_store(tx, realtime, mock_feature_store)
@@ -380,7 +311,7 @@ class TestEnrichWithFeatureStore:
             "customer_id": 100,
             "terminal_id": 500,
             "amount": 10000.0,  # Extreme amount
-            "timestamp": "2024-01-15T14:30:00"
+            "timestamp": "2024-01-15T14:30:00",
         }
         realtime = extract_realtime_features(tx)
         all_features = enrich_with_feature_store(tx, realtime, mock_feature_store)
@@ -388,10 +319,12 @@ class TestEnrichWithFeatureStore:
         # (10000 - 75.5) / 25 = 396.98 -> clipped to 10
         assert all_features["CUSTOMER_AMOUNT_DEVIATION"] == 10.0
 
-    def test_zero_std_deviation(self, sample_transaction, mock_customer_features, mock_terminal_features):
+    def test_zero_std_deviation(
+        self, sample_transaction, mock_customer_features, mock_terminal_features
+    ):
         """Zero std deviation should result in 0 deviation."""
         mock_store = Mock()
-        zero_std_features = {**mock_customer_features, 'CUSTOMER_STD_AMOUNT_7D': 0.0}
+        zero_std_features = {**mock_customer_features, "CUSTOMER_STD_AMOUNT_7D": 0.0}
         mock_store.get_customer_features.return_value = zero_std_features
         mock_store.get_terminal_features.return_value = mock_terminal_features
 
@@ -400,9 +333,7 @@ class TestEnrichWithFeatureStore:
 
         assert all_features["CUSTOMER_AMOUNT_DEVIATION"] == 0.0
 
-    def test_risk_score_calculation(
-        self, sample_transaction, mock_feature_store
-    ):
+    def test_risk_score_calculation(self, sample_transaction, mock_feature_store):
         """Risk score should be weighted sum of risk indicators."""
         realtime = extract_realtime_features(sample_transaction)
         all_features = enrich_with_feature_store(sample_transaction, realtime, mock_feature_store)
@@ -478,7 +409,7 @@ class TestScoreTransaction:
             feature_order=sample_feature_order,
             threshold=0.5,
             model_version="test_v1",
-            feature_store=mock_feature_store
+            feature_store=mock_feature_store,
         )
 
         assert "transaction_id" in result
@@ -503,7 +434,7 @@ class TestScoreTransaction:
             feature_order=sample_feature_order,
             threshold=0.5,
             model_version="test_v1",
-            feature_store=mock_feature_store
+            feature_store=mock_feature_store,
         )
 
         assert 0.0 <= result["fraud_probability"] <= 1.0
@@ -518,7 +449,7 @@ class TestScoreTransaction:
             feature_order=sample_feature_order,
             threshold=0.5,
             model_version="test_v1",
-            feature_store=mock_feature_store
+            feature_store=mock_feature_store,
         )
 
         assert result["is_fraud"] is True
@@ -533,17 +464,20 @@ class TestScoreTransaction:
             feature_order=sample_feature_order,
             threshold=0.5,
             model_version="test_v1",
-            feature_store=mock_feature_store
+            feature_store=mock_feature_store,
         )
 
         assert result["is_fraud"] is False
 
-    @pytest.mark.parametrize("prob,expected_level", [
-        (0.95, "CRITICAL"),
-        (0.85, "HIGH"),
-        (0.65, "MEDIUM"),
-        (0.35, "LOW"),
-    ])
+    @pytest.mark.parametrize(
+        "prob,expected_level",
+        [
+            (0.95, "CRITICAL"),
+            (0.85, "HIGH"),
+            (0.65, "MEDIUM"),
+            (0.35, "LOW"),
+        ],
+    )
     def test_risk_level_categorization(
         self, sample_transaction, mock_feature_store, sample_feature_order, prob, expected_level
     ):
@@ -557,14 +491,12 @@ class TestScoreTransaction:
             feature_order=sample_feature_order,
             threshold=0.5,
             model_version="test_v1",
-            feature_store=mock_feature_store
+            feature_store=mock_feature_store,
         )
 
         assert result["risk_level"] == expected_level
 
-    def test_invalid_transaction_raises(
-        self, mock_model, mock_feature_store, sample_feature_order
-    ):
+    def test_invalid_transaction_raises(self, mock_model, mock_feature_store, sample_feature_order):
         """Invalid transaction should raise ValueError."""
         invalid_tx = {
             "customer_id": 100,
@@ -578,7 +510,7 @@ class TestScoreTransaction:
                 feature_order=sample_feature_order,
                 threshold=0.5,
                 model_version="test_v1",
-                feature_store=mock_feature_store
+                feature_store=mock_feature_store,
             )
 
     def test_uses_provided_transaction_id(
@@ -591,7 +523,7 @@ class TestScoreTransaction:
             feature_order=sample_feature_order,
             threshold=0.5,
             model_version="test_v1",
-            feature_store=mock_feature_store
+            feature_store=mock_feature_store,
         )
 
         assert result["transaction_id"] == "test_tx_001"
@@ -604,7 +536,7 @@ class TestScoreTransaction:
             "customer_id": 100,
             "terminal_id": 500,
             "amount": 100.0,
-            "timestamp": "2024-01-15T14:30:00"
+            "timestamp": "2024-01-15T14:30:00",
         }
 
         result = score_transaction(
@@ -613,7 +545,7 @@ class TestScoreTransaction:
             feature_order=sample_feature_order,
             threshold=0.5,
             model_version="test_v1",
-            feature_store=mock_feature_store
+            feature_store=mock_feature_store,
         )
 
         assert result["transaction_id"].startswith("tx_")
@@ -628,7 +560,7 @@ class TestScoreTransaction:
             feature_order=sample_feature_order,
             threshold=0.5,
             model_version="test_v1",
-            feature_store=mock_feature_store
+            feature_store=mock_feature_store,
         )
 
         features_used = result["features_used"]

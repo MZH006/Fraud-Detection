@@ -1,8 +1,9 @@
 """Settings loaded from environment variables and .env."""
 
-from pydantic_settings import BaseSettings
 from functools import lru_cache
-from typing import Optional, List
+from typing import List, Optional
+
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
